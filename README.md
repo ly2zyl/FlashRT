@@ -4,6 +4,8 @@
 
 # FlashRT
 
+[中文部署与机器人模型评测说明](README_zh.md)
+
 **FlashRT is a high-performance realtime inference engine for small-batch, latency-sensitive AI workloads.**
 
 <p align="center">
