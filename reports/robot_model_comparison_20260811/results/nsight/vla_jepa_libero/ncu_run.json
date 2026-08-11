@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "model": "vla_jepa_libero",
+  "architecture": "vla_jepa_world_model_policy",
+  "task_family": "LIBERO",
+  "comparison_scope": "aligned_two_view_replan_to_first_7d_action",
+  "checkpoint": "/workspace/models/VLA-JEPA-LIBERO",
+  "checkpoint_revision": "735d9f692981e286ade093b5046627eda876e5d0",
+  "checkpoint_size_bytes": 6163226671,
+  "parameters": 2770333319,
+  "parameter_dtypes": {
+    "torch.bfloat16": 2453503360,
+    "torch.float32": 316829959
+  },
+  "input": {
+    "canonical_camera_count": 2,
+    "canonical_raw_image_shape": [
+      3,
+      224,
+      224
+    ],
+    "canonical_image_pair_sha256": "4a5950d0ca8f2eeb20379c79e6b3b31972a3c6d09cdd44f66b901b129209a9e6",
+    "task": "pick up the red block",
+    "seed": 0,
+    "native_image_shape": [
+      3,
+      224,
+      224
+    ],
+    "state_dimension": 8,
+    "preprocessing_in_timed_region": true,
+    "denoising_steps": 4,
+    "native_action_chunk_size": 7,
+    "native_action_dimension": 7,
+    "api_boundary": "VLAJEPAPolicy.predict_action_chunk"
+  },
+  "native_output": {
+    "shape": [
+      1,
+      7,
+      7
+    ],
+    "dtype": "torch.float32"
+  },
+  "aligned_output_definition": "batch x first action x first 7 LIBERO dimensions",
+  "environment": {
+    "hostname": "5090",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "torch_cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": [
+      12,
+      0
+    ],
+    "driver": "590.44.01",
+    "power_limit_w": "575.00 W"
+  },
+  "cold": {
+    "load_and_prepare_seconds": 10.247717714000828,
+    "first_infer_seconds": 1.141180429999622
+  },
+  "steady_state": {
+    "warmup": 3,
+    "wall_ms": {
+      "n": 0
+    },
+    "cuda_event_ms": {
+      "n": 0
+    },
+    "replans_per_second_p50": null
+  },
+  "memory": {
+    "peak_allocated_bytes": 6290465280,
+    "peak_reserved_bytes": 6329204736
+  },
+  "output": {
+    "shape": [
+      1,
+      7
+    ],
+    "dtype": "torch.float32",
+    "finite": true,
+    "numel": 7
+  },
+  "profiler_range_iterations": 1
+}

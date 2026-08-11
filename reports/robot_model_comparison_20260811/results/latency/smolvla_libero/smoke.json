@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "model": "smolvla_libero",
+  "architecture": "smolvla_flow_matching",
+  "task_family": "LIBERO",
+  "comparison_scope": "preprocessed_libero_tensor_to_action_chunk",
+  "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+  "checkpoint_revision": "31d453f7edd78c839a8bbc39744a292686daf0de",
+  "checkpoint_size_bytes": 906740310,
+  "runtime": {
+    "lerobot": "0.6.1"
+  },
+  "input": {
+    "image_keys": [
+      "observation.images.camera1",
+      "observation.images.camera2",
+      "observation.images.camera3"
+    ],
+    "provided_image_keys": [
+      "observation.images.image",
+      "observation.images.image2"
+    ],
+    "raw_image_shape": [
+      3,
+      256,
+      256
+    ],
+    "state_shape": [
+      6
+    ],
+    "task": "pick up the red block",
+    "seed": 0,
+    "preprocessing_in_timed_region": false,
+    "processed_keys": [
+      "observation.images.camera1",
+      "observation.images.camera2",
+      "observation.language.attention_mask",
+      "observation.language.tokens",
+      "observation.state"
+    ]
+  },
+  "model_settings": {
+    "observation_steps": 1,
+    "denoising_steps": 10,
+    "action_chunk_size": 50,
+    "action_dimension": 7
+  },
+  "parameters": 450046176,
+  "api_boundary": "SmolVLAPolicy.predict_action_chunk",
+  "environment": {
+    "hostname": "5090",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "torch_cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": [
+      12,
+      0
+    ],
+    "driver": "590.44.01",
+    "power_limit_w": "575.00 W"
+  },
+  "cold": {
+    "load_and_preprocess_seconds": 6.594279494020157,
+    "first_infer_seconds": 0.5127205060562119
+  },
+  "steady_state": {
+    "warmup": 0,
+    "wall_ms": {
+      "n": 1,
+      "p50": 116.59167101606727,
+      "p90": 116.59167101606727,
+      "p95": 116.59167101606727,
+      "mean": 116.59167101606727,
+      "min": 116.59167101606727,
+      "max": 116.59167101606727
+    },
+    "cuda_event_ms": {
+      "n": 1,
+      "p50": 116.54927825927734,
+      "p90": 116.54927825927734,
+      "p95": 116.54927825927734,
+      "mean": 116.54927825927734,
+      "min": 116.54927825927734,
+      "max": 116.54927825927734
+    },
+    "chunks_per_second_p50": 8.576942000103866
+  },
+  "memory": {
+    "peak_allocated_bytes": 970004480,
+    "peak_reserved_bytes": 996147200
+  },
+  "output": {
+    "shape": [
+      1,
+      50,
+      7
+    ],
+    "dtype": "torch.float32",
+    "finite": true,
+    "numel": 350
+  },
+  "profiler_range_iterations": 0
+}

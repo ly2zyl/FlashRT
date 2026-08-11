@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evaluation_scope": "closed_loop_raw_libero_observation_to_environment_action",
+  "model": "groot_libero",
+  "checkpoint": {
+    "libero_spatial": "/workspace/models/GR00T-N1.7-LIBERO/libero_spatial"
+  },
+  "protocol": {
+    "cases": [
+      {
+        "suite": "libero_spatial",
+        "task_id": 0
+      }
+    ],
+    "episodes_per_task": 1,
+    "control_mode": "relative",
+    "camera_resolution": [
+      256,
+      256
+    ],
+    "seed_start": 0
+  },
+  "summary": {
+    "episodes": 1,
+    "successes": 1,
+    "success_rate_percent": 100.0,
+    "mean_episode_seconds": 2.519916197999919
+  },
+  "tasks": [
+    {
+      "suite": "libero_spatial",
+      "task_id": 0,
+      "checkpoint": "/workspace/models/GR00T-N1.7-LIBERO/libero_spatial",
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 72,
+          "sum_reward": 1.0,
+          "wall_seconds": 2.519916197999919,
+          "observation_to_action_ms": {
+            "n": 72,
+            "p50": 6.361099000059767,
+            "p95": 72.81016699926113,
+            "mean": 22.956365013694974,
+            "min": 4.914074999760487,
+            "max": 936.2549990000844
+          }
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "hostname": "5090",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090"
+  }
+}

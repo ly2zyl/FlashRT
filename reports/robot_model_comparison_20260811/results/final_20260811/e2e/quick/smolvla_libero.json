@@ -1,0 +1,1124 @@
+{
+  "schema_version": 1,
+  "evaluation_scope": "closed_loop_raw_libero_observation_to_environment_action",
+  "model": "smolvla_libero",
+  "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+  "protocol": {
+    "cases": [
+      {
+        "suite": "libero_spatial",
+        "task_id": 0
+      },
+      {
+        "suite": "libero_object",
+        "task_id": 0
+      },
+      {
+        "suite": "libero_goal",
+        "task_id": 0
+      },
+      {
+        "suite": "libero_goal",
+        "task_id": 7
+      },
+      {
+        "suite": "libero_10",
+        "task_id": 0
+      },
+      {
+        "suite": "libero_10",
+        "task_id": 9
+      }
+    ],
+    "episodes_per_task": 10,
+    "control_mode": "relative",
+    "camera_resolution": [
+      256,
+      256
+    ],
+    "seed_start": 0,
+    "environment_and_policy_rng_reset_per_episode": true
+  },
+  "summary": {
+    "episodes": 60,
+    "successes": 41,
+    "success_rate_percent": 68.33333333333333,
+    "total_steps": 13856,
+    "total_wall_seconds": 165.4185190580065,
+    "control_frequency_hz": 83.76329372856485,
+    "successful_episode_mean_steps": 137.46341463414635,
+    "observation_to_action_mean_ms": 3.504006165272343,
+    "mean_episode_seconds": 2.7569753176334415
+  },
+  "tasks": [
+    {
+      "suite": "libero_spatial",
+      "task_id": 0,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 7,
+        "success_rate_percent": 70.0,
+        "total_steps": 1394,
+        "total_wall_seconds": 20.98615513900222,
+        "control_frequency_hz": 66.42474482661606,
+        "successful_episode_mean_steps": 79.14285714285714,
+        "observation_to_action_mean_ms": 3.8917180423123345
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 80,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.6537164229994232,
+          "observation_to_action_ms": {
+            "n": 80,
+            "p50": 1.3147239988029469,
+            "p95": 1.7967219991987804,
+            "mean": 9.027514762465216,
+            "min": 1.0611449997668387,
+            "max": 513.1072439999116
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 78,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.1841493370011449,
+          "observation_to_action_ms": {
+            "n": 78,
+            "p50": 1.3206140010879608,
+            "p95": 1.7514419996587094,
+            "mean": 3.9876876795134217,
+            "min": 1.0842649990081554,
+            "max": 105.51649300032295
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 3.9572376710002573,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.0888849992625182,
+            "p95": 1.4126639998721657,
+            "mean": 3.350637989244985,
+            "min": 1.0538650003582006,
+            "max": 105.00999599935312
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": true,
+          "steps": 85,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.3328502679996745,
+          "observation_to_action_ms": {
+            "n": 85,
+            "p50": 1.2847050002164906,
+            "p95": 1.6884830001799855,
+            "mean": 3.706732623536749,
+            "min": 1.0683350010367576,
+            "max": 104.79183700044814
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 4.016650485000355,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.1051649998989888,
+            "p95": 1.4656029998150188,
+            "mean": 3.380248099957888,
+            "min": 1.061285000105272,
+            "max": 105.95443099919066
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": true,
+          "steps": 78,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.1600063420009974,
+          "observation_to_action_ms": {
+            "n": 78,
+            "p50": 1.1045149985875469,
+            "p95": 1.7770319991541328,
+            "mean": 3.8340090640747055,
+            "min": 1.0725849988375558,
+            "max": 105.08011400088435
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 4.080558007999571,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.1296539996692445,
+            "p95": 1.7319020007562358,
+            "mean": 3.444783089331135,
+            "min": 1.0633549991325708,
+            "max": 105.30511400065734
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": true,
+          "steps": 77,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.153452209000534,
+          "observation_to_action_ms": {
+            "n": 77,
+            "p50": 1.1991150004178053,
+            "p95": 1.7221319994860096,
+            "mean": 3.9189019091943256,
+            "min": 1.0684850003599422,
+            "max": 104.63281700140215
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": true,
+          "steps": 79,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.278313151000475,
+          "observation_to_action_ms": {
+            "n": 79,
+            "p50": 1.3588639994850382,
+            "p95": 1.8133319990738528,
+            "mean": 4.072482075916693,
+            "min": 1.0885350002354244,
+            "max": 106.88503500023216
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": true,
+          "steps": 77,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.1692212449997896,
+          "observation_to_action_ms": {
+            "n": 77,
+            "p50": 1.1263440010225167,
+            "p95": 1.7871410000225296,
+            "mean": 3.961301947932149,
+            "min": 1.0728149991336977,
+            "max": 105.89626000000862
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 0,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 7,
+        "success_rate_percent": 70.0,
+        "total_steps": 1785,
+        "total_wall_seconds": 20.40256161400066,
+        "control_frequency_hz": 87.48901406454256,
+        "successful_episode_mean_steps": 135.0,
+        "observation_to_action_mean_ms": 3.453274280111976
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 127,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.6219577489991934,
+          "observation_to_action_ms": {
+            "n": 127,
+            "p50": 1.0759249998955056,
+            "p95": 1.3286940011312254,
+            "mean": 3.555539818803732,
+            "min": 1.0528049988351995,
+            "max": 104.43375700015167
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 128,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.4857618170008209,
+          "observation_to_action_ms": {
+            "n": 128,
+            "p50": 1.0757050004031043,
+            "p95": 1.4477630011242582,
+            "mean": 3.550209578051522,
+            "min": 1.0571050006547011,
+            "max": 104.17714799950772
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": true,
+          "steps": 133,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5629623490003723,
+          "observation_to_action_ms": {
+            "n": 133,
+            "p50": 1.1342540001351153,
+            "p95": 1.7333920004602987,
+            "mean": 3.5757226842794525,
+            "min": 1.05928500124719,
+            "max": 107.42642300101579
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 3.003825730000244,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.0784049991343636,
+            "p95": 1.6420830015704269,
+            "mean": 3.364790878582166,
+            "min": 1.056484999935492,
+            "max": 104.8775849994854
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 3.041243742000006,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.0839049991773209,
+            "p95": 1.6566529993724544,
+            "mean": 3.3828199964253662,
+            "min": 1.0611849993438227,
+            "max": 105.40279199994984
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": true,
+          "steps": 136,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.6072051989995089,
+          "observation_to_action_ms": {
+            "n": 136,
+            "p50": 1.3025340012973174,
+            "p95": 1.7719019997457508,
+            "mean": 3.5977920221793123,
+            "min": 1.060005000908859,
+            "max": 107.25643399928231
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": true,
+          "steps": 145,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.7957145939999464,
+          "observation_to_action_ms": {
+            "n": 145,
+            "p50": 1.2646539998968365,
+            "p95": 1.7372019992762944,
+            "mean": 3.388741544793071,
+            "min": 1.0627450010360917,
+            "max": 105.55979099990509
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": true,
+          "steps": 136,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.677336140000989,
+          "observation_to_action_ms": {
+            "n": 136,
+            "p50": 1.3022930015722523,
+            "p95": 1.824762000978808,
+            "mean": 3.5975891911782716,
+            "min": 1.0567350000201259,
+            "max": 105.71164999964822
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": true,
+          "steps": 140,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5626298500010307,
+          "observation_to_action_ms": {
+            "n": 140,
+            "p50": 1.082064000001992,
+            "p95": 1.3252740009193076,
+            "mean": 3.3445579928281535,
+            "min": 1.0607950007397449,
+            "max": 107.56663199936156
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": false,
+          "steps": 280,
+          "sum_reward": 0.0,
+          "wall_seconds": 3.0439244439985487,
+          "observation_to_action_ms": {
+            "n": 280,
+            "p50": 1.109405000534025,
+            "p95": 1.752981999743497,
+            "mean": 3.4108377035798703,
+            "min": 1.0575849992164876,
+            "max": 104.54450500037638
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 0,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 10,
+        "success_rate_percent": 100.0,
+        "total_steps": 1243,
+        "total_wall_seconds": 14.857658292999986,
+        "control_frequency_hz": 83.66055911957709,
+        "successful_episode_mean_steps": 124.3,
+        "observation_to_action_mean_ms": 3.674029032986353
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 124,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.4802247879997594,
+          "observation_to_action_ms": {
+            "n": 124,
+            "p50": 1.0803050008689752,
+            "p95": 1.6496420012117596,
+            "mean": 3.6664531532345968,
+            "min": 1.0493250010767952,
+            "max": 105.22787200170569
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 125,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5073948610006482,
+          "observation_to_action_ms": {
+            "n": 125,
+            "p50": 1.0789850002765888,
+            "p95": 1.4831629996479023,
+            "mean": 3.634159911831375,
+            "min": 1.0570350004854845,
+            "max": 107.01306300143187
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": true,
+          "steps": 121,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.4722713329992985,
+          "observation_to_action_ms": {
+            "n": 121,
+            "p50": 1.1301750000711763,
+            "p95": 1.6660019991832087,
+            "mean": 3.7958421817466457,
+            "min": 1.0553749998507556,
+            "max": 106.65500499999325
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": true,
+          "steps": 126,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5108567120005318,
+          "observation_to_action_ms": {
+            "n": 126,
+            "p50": 1.0933049998129718,
+            "p95": 1.6446919998998055,
+            "mean": 3.6518963651692573,
+            "min": 1.0604649996821536,
+            "max": 104.81894400072633
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": true,
+          "steps": 129,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.508812690999548,
+          "observation_to_action_ms": {
+            "n": 129,
+            "p50": 1.0740050001913914,
+            "p95": 1.3275040000735316,
+            "mean": 3.509758573709969,
+            "min": 1.04549600109749,
+            "max": 105.19772199950239
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": true,
+          "steps": 121,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.4358517179989576,
+          "observation_to_action_ms": {
+            "n": 121,
+            "p50": 1.0844450007425621,
+            "p95": 1.3743439994868822,
+            "mean": 3.7220878761112814,
+            "min": 1.0529460014367942,
+            "max": 106.26145700007328
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": true,
+          "steps": 119,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.4164792169995053,
+          "observation_to_action_ms": {
+            "n": 119,
+            "p50": 1.0873949995584553,
+            "p95": 1.3233240006229607,
+            "mean": 3.7280733950185185,
+            "min": 1.0650450003595324,
+            "max": 104.7009239991894
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": true,
+          "steps": 128,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5450349300008384,
+          "observation_to_action_ms": {
+            "n": 128,
+            "p50": 1.288194000153453,
+            "p95": 1.7205809999722987,
+            "mean": 3.67011039065801,
+            "min": 1.050345001203823,
+            "max": 105.31989099945349
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": true,
+          "steps": 130,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.5726344600006996,
+          "observation_to_action_ms": {
+            "n": 130,
+            "p50": 1.3152540013834368,
+            "p95": 1.7583120006747777,
+            "mean": 3.6885688383755713,
+            "min": 1.076104999810923,
+            "max": 105.2948810011003
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": true,
+          "steps": 120,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.408097583000199,
+          "observation_to_action_ms": {
+            "n": 120,
+            "p50": 1.066435999746318,
+            "p95": 1.3660939985129517,
+            "mean": 3.6867646666754204,
+            "min": 1.048575999448076,
+            "max": 105.95417800141149
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 7,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 9,
+        "success_rate_percent": 90.0,
+        "total_steps": 987,
+        "total_wall_seconds": 12.079243140000472,
+        "control_frequency_hz": 81.7104174955751,
+        "successful_episode_mean_steps": 76.33333333333333,
+        "observation_to_action_mean_ms": 3.6971522553627296
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 76,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9579997710006865,
+          "observation_to_action_ms": {
+            "n": 76,
+            "p50": 1.2912239999423036,
+            "p95": 1.6729920007492183,
+            "mean": 3.945808263204909,
+            "min": 1.0501149990886915,
+            "max": 104.55344500041974
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 75,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9306477780010027,
+          "observation_to_action_ms": {
+            "n": 75,
+            "p50": 1.0775049995572772,
+            "p95": 1.3759329995082226,
+            "mean": 3.921391093293399,
+            "min": 1.049525999405887,
+            "max": 107.71139999997104
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": false,
+          "steps": 300,
+          "sum_reward": 0.0,
+          "wall_seconds": 3.557567931999074,
+          "observation_to_action_ms": {
+            "n": 300,
+            "p50": 1.0765450006147148,
+            "p95": 1.6715120000299066,
+            "mean": 3.233226260047862,
+            "min": 1.0476649986230768,
+            "max": 106.35243500109937
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": true,
+          "steps": 77,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9243950449999829,
+          "observation_to_action_ms": {
+            "n": 77,
+            "p50": 1.0744549999799347,
+            "p95": 1.4101029992161784,
+            "mean": 3.8622072207816656,
+            "min": 1.057545001458493,
+            "max": 108.09451800014358
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": true,
+          "steps": 72,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.886276151999482,
+          "observation_to_action_ms": {
+            "n": 72,
+            "p50": 1.0815650002768962,
+            "p95": 1.3178429999243235,
+            "mean": 4.031674680694171,
+            "min": 1.0579050012893276,
+            "max": 106.73638399930496
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": true,
+          "steps": 72,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9194850559997576,
+          "observation_to_action_ms": {
+            "n": 72,
+            "p50": 1.124925000112853,
+            "p95": 1.737061998937861,
+            "mean": 4.097901652736861,
+            "min": 1.0498949995962903,
+            "max": 105.89078799966956
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": true,
+          "steps": 87,
+          "sum_reward": 1.0,
+          "wall_seconds": 1.0843359299997246,
+          "observation_to_action_ms": {
+            "n": 87,
+            "p50": 1.1012550003215438,
+            "p95": 1.724841000395827,
+            "mean": 3.5797400919520816,
+            "min": 1.049655000315397,
+            "max": 104.6172940004908
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": true,
+          "steps": 79,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9770951979990059,
+          "observation_to_action_ms": {
+            "n": 79,
+            "p50": 1.0799049996421672,
+            "p95": 1.711131999400095,
+            "mean": 3.7987149240921734,
+            "min": 1.0464150000188965,
+            "max": 106.43055600121443
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": true,
+          "steps": 80,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.9753175750010996,
+          "observation_to_action_ms": {
+            "n": 80,
+            "p50": 1.0750450001069112,
+            "p95": 1.6976520000753226,
+            "mean": 3.766808837622193,
+            "min": 1.0489750002307119,
+            "max": 106.15462600071623
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": true,
+          "steps": 69,
+          "sum_reward": 1.0,
+          "wall_seconds": 0.8661227030006557,
+          "observation_to_action_ms": {
+            "n": 69,
+            "p50": 1.0874149993469473,
+            "p95": 1.3345229999686126,
+            "mean": 4.196168289970534,
+            "min": 1.05896499917435,
+            "max": 110.00301800049783
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 0,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 2,
+        "success_rate_percent": 20.0,
+        "total_steps": 4813,
+        "total_wall_seconds": 56.544185768001626,
+        "control_frequency_hz": 85.11927326617688,
+        "successful_episode_mean_steps": 326.5,
+        "observation_to_action_mean_ms": 3.3916211111599632
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.016611320001175,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.0889050008699996,
+            "p95": 1.7279419989790767,
+            "mean": 3.386165111477077,
+            "min": 1.0607449985400308,
+            "max": 105.87257699990005
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 273,
+          "sum_reward": 1.0,
+          "wall_seconds": 3.2780440040005487,
+          "observation_to_action_ms": {
+            "n": 273,
+            "p50": 1.1058350009989226,
+            "p95": 1.5416030000778846,
+            "mean": 3.4677328461799375,
+            "min": 1.0633050005708355,
+            "max": 105.93363699990732
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.043376792000345,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1007249995600432,
+            "p95": 1.751361998685752,
+            "mean": 3.401834550042902,
+            "min": 1.0546150006121024,
+            "max": 107.33587100003206
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": true,
+          "steps": 380,
+          "sum_reward": 1.0,
+          "wall_seconds": 4.508063360999586,
+          "observation_to_action_ms": {
+            "n": 380,
+            "p50": 1.0920149998128181,
+            "p95": 1.3915529998485,
+            "mean": 3.3209049000297934,
+            "min": 1.0669849998521386,
+            "max": 107.08544100089057
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.2765985799997,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1026840002159588,
+            "p95": 1.74947200139286,
+            "mean": 3.4007794923267145,
+            "min": 1.063744999555638,
+            "max": 106.0619960007898
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.221230582999851,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.2651039996853797,
+            "p95": 1.7580419989826623,
+            "mean": 3.454067228841058,
+            "min": 1.0578250003163703,
+            "max": 107.73504799908551
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.164095915000871,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1003250001522247,
+            "p95": 1.7800020013964968,
+            "mean": 3.40607071922862,
+            "min": 1.0529149985814001,
+            "max": 106.45080399990547
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 6.10634667100021,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.096515001336229,
+            "p95": 1.6642020000290358,
+            "mean": 3.3789749345942255,
+            "min": 1.0595849998935591,
+            "max": 107.66191800030356
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.967236976999629,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.088875000277767,
+            "p95": 1.741062000292004,
+            "mean": 3.3648782173119027,
+            "min": 1.0517050013731932,
+            "max": 106.10849499971664
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.962581564999709,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.087254999220022,
+            "p95": 1.730711999698542,
+            "mean": 3.351917205782229,
+            "min": 1.0614060010993853,
+            "max": 106.52914300044358
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 9,
+      "checkpoint": "/workspace/models/SmolVLA-LIBERO",
+      "summary": {
+        "episodes": 10,
+        "successes": 6,
+        "success_rate_percent": 60.0,
+        "total_steps": 3634,
+        "total_wall_seconds": 40.54871510400153,
+        "control_frequency_hz": 89.62059563858733,
+        "successful_episode_mean_steps": 259.0,
+        "observation_to_action_mean_ms": 3.418431511549905
+      },
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 277,
+          "sum_reward": 1.0,
+          "wall_seconds": 3.1609828769996966,
+          "observation_to_action_ms": {
+            "n": 277,
+            "p50": 1.096154999686405,
+            "p95": 1.519012999779079,
+            "mean": 3.4284045558696716,
+            "min": 1.0619349995977245,
+            "max": 106.06693400040967
+          }
+        },
+        {
+          "episode": 1,
+          "seed": 1,
+          "success": true,
+          "steps": 255,
+          "sum_reward": 1.0,
+          "wall_seconds": 2.88241634500082,
+          "observation_to_action_ms": {
+            "n": 255,
+            "p50": 1.1029550005332567,
+            "p95": 1.733881999825826,
+            "mean": 3.6782922157227387,
+            "min": 1.061495000612922,
+            "max": 106.99933000068995
+          }
+        },
+        {
+          "episode": 2,
+          "seed": 2,
+          "success": true,
+          "steps": 243,
+          "sum_reward": 1.0,
+          "wall_seconds": 2.688229190000129,
+          "observation_to_action_ms": {
+            "n": 243,
+            "p50": 1.0886749987548683,
+            "p95": 1.6412319982919144,
+            "mean": 3.2891665884821077,
+            "min": 1.061174998540082,
+            "max": 105.23071800162143
+          }
+        },
+        {
+          "episode": 3,
+          "seed": 3,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.663178000000698,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.0886150012083817,
+            "p95": 1.5573119999316987,
+            "mean": 3.3559457115083764,
+            "min": 1.0672549997252645,
+            "max": 108.9033610005572
+          }
+        },
+        {
+          "episode": 4,
+          "seed": 4,
+          "success": true,
+          "steps": 276,
+          "sum_reward": 1.0,
+          "wall_seconds": 3.1339281059990753,
+          "observation_to_action_ms": {
+            "n": 276,
+            "p50": 1.1087049988418585,
+            "p95": 1.75218200092786,
+            "mean": 3.444132014458549,
+            "min": 1.0809949999384116,
+            "max": 105.83985500124982
+          }
+        },
+        {
+          "episode": 5,
+          "seed": 5,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.830640367001251,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1146649994770996,
+            "p95": 1.7023319996951614,
+            "mean": 3.3951022135205187,
+            "min": 1.0830149985849857,
+            "max": 107.8060749987344
+          }
+        },
+        {
+          "episode": 6,
+          "seed": 6,
+          "success": true,
+          "steps": 245,
+          "sum_reward": 1.0,
+          "wall_seconds": 2.7226082910001423,
+          "observation_to_action_ms": {
+            "n": 245,
+            "p50": 1.1077550007030368,
+            "p95": 1.3686029997188598,
+            "mean": 3.2714631755397376,
+            "min": 1.0821150008268887,
+            "max": 107.27026799941086
+          }
+        },
+        {
+          "episode": 7,
+          "seed": 7,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.799807393999799,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1389840001356788,
+            "p95": 1.7260120002902113,
+            "mean": 3.4152773730826222,
+            "min": 1.0771750003186753,
+            "max": 105.56942500079458
+          }
+        },
+        {
+          "episode": 8,
+          "seed": 8,
+          "success": true,
+          "steps": 258,
+          "sum_reward": 1.0,
+          "wall_seconds": 2.957960521000132,
+          "observation_to_action_ms": {
+            "n": 258,
+            "p50": 1.1296840002614772,
+            "p95": 1.801181999326218,
+            "mean": 3.6632692712683896,
+            "min": 1.0814649995154468,
+            "max": 105.6736450009339
+          }
+        },
+        {
+          "episode": 9,
+          "seed": 9,
+          "success": false,
+          "steps": 520,
+          "sum_reward": 0.0,
+          "wall_seconds": 5.708964012999786,
+          "observation_to_action_ms": {
+            "n": 520,
+            "p50": 1.1143440005980665,
+            "p95": 1.53143299939984,
+            "mean": 3.3691894499672626,
+            "min": 1.0754150007414864,
+            "max": 108.62153100060823
+          }
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "hostname": "5090",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090"
+  }
+}

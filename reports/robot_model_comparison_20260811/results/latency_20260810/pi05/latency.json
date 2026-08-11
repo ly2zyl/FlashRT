@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "model": "pi05",
+  "architecture": "pi05_flow_matching",
+  "task_family": "LIBERO",
+  "comparison_scope": "aligned_two_view_replan_to_first_7d_action",
+  "checkpoint": "/workspace/models/pi05_libero_finetuned_v044",
+  "checkpoint_revision": "local_flashrt_checkpoint",
+  "checkpoint_size_bytes": 7473127906,
+  "parameters": null,
+  "parameter_dtypes": {},
+  "input": {
+    "canonical_camera_count": 2,
+    "canonical_raw_image_shape": [
+      3,
+      224,
+      224
+    ],
+    "canonical_image_pair_sha256": "4a5950d0ca8f2eeb20379c79e6b3b31972a3c6d09cdd44f66b901b129209a9e6",
+    "task": "pick up the red block",
+    "seed": 0,
+    "native_image_shape": [
+      3,
+      224,
+      224
+    ],
+    "state_dimension": 0,
+    "preprocessing_in_timed_region": true,
+    "denoising_steps": 10,
+    "native_action_chunk_size": 10,
+    "native_action_dimension": 7,
+    "api_boundary": "FlashRTPi05.predict"
+  },
+  "native_output": {
+    "shape": [
+      10,
+      7
+    ],
+    "dtype": "torch.float32"
+  },
+  "aligned_output_definition": "batch x first action x first 7 LIBERO dimensions",
+  "environment": {
+    "hostname": "5090",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "torch_cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": [
+      12,
+      0
+    ],
+    "driver": "590.44.01",
+    "power_limit_w": "575.00 W"
+  },
+  "cold": {
+    "load_and_prepare_seconds": 6.033102701010648,
+    "first_infer_seconds": 0.5321120340377092
+  },
+  "steady_state": {
+    "warmup": 10,
+    "wall_ms": {
+      "n": 30,
+      "p50": 21.855196973774582,
+      "p90": 22.418562963139266,
+      "p95": 22.45767298154533,
+      "mean": 21.849142529147986,
+      "min": 20.868672989308834,
+      "max": 22.600942000281066
+    },
+    "cuda_event_ms": {
+      "n": 30,
+      "p50": 21.821184158325195,
+      "p90": 22.38819122314453,
+      "p95": 22.4267520904541,
+      "mean": 21.817345110575356,
+      "min": 20.838623046875,
+      "max": 22.56822395324707
+    },
+    "replans_per_second_p50": 45.75570749602314
+  },
+  "memory": {
+    "peak_allocated_bytes": 9690371072,
+    "peak_reserved_bytes": 10036969472
+  },
+  "output": {
+    "shape": [
+      1,
+      7
+    ],
+    "dtype": "torch.float32",
+    "finite": true,
+    "numel": 7
+  },
+  "profiler_range_iterations": 0
+}

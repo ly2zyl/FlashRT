@@ -29,9 +29,11 @@ FROM ${BASE_IMAGE}
 #              different GPU than the build host.
 #   GIT_REF    optional CUTLASS pin if upstream tags get yanked.
 #   FA2_HDIMS  forwarded to CMake to slim FA2 codegen for shipped models.
+#   BUILD_JOBS caps concurrent compiler processes to avoid host OOM.
 ARG GPU_ARCH=""
 ARG CUTLASS_REF=v4.4.2
 ARG FA2_HDIMS=""
+ARG BUILD_JOBS=8
 
 # ── Tiny base utilities (NGC image already has cmake/ninja/git, but
 #    pin in case a future base image drops one of them). ──
@@ -77,20 +79,40 @@ RUN mkdir -p third_party && ln -sfn /opt/cutlass third_party/cutlass
 RUN cmake -B build -S . \
         $( [ -n "${GPU_ARCH}" ] && echo "-DGPU_ARCH=${GPU_ARCH}" ) \
         $( [ -n "${FA2_HDIMS}" ] && echo "-DFA2_HDIMS=${FA2_HDIMS}" ) \
- && cmake --build build -j"$(nproc)" \
+ && cmake --build build -j"${BUILD_JOBS}" \
  && rm -rf build/CMakeFiles
 
-# ── Editable install — registers flash_rt with the system Python so
-#    `python -c "import flash_rt"` works from any working directory. ──
-RUN python3 -m pip install --no-cache-dir --no-build-isolation -e ".[torch]"
+# These directories are needed by repository-wide validation but do not
+# participate in the CUDA build. Copy them after compilation so edits to
+# serving or validation helpers do not invalidate the expensive kernel layer.
+COPY scripts/      scripts/
+COPY serving/      serving/
+
+# Restore CMake target/link metadata used by repository-wide structural tests.
+# The expensive compile layer removes CMakeFiles to keep its cache compact;
+# this configure-only pass does not rebuild any CUDA objects.
+RUN cmake -B build -S . \
+        $( [ -n "${GPU_ARCH}" ] && echo "-DGPU_ARCH=${GPU_ARCH}" ) \
+        $( [ -n "${FA2_HDIMS}" ] && echo "-DFA2_HDIMS=${FA2_HDIMS}" )
+
+# ── Editable install — registers flash_rt with the system Python and
+#    preinstalls the runtime / test dependencies documented by README. ──
+RUN python3 -m pip install --no-cache-dir --no-build-isolation \
+        -e ".[torch,server]" \
+        "transformers<4.56" \
+        pandas \
+        pillow \
+        pyarrow \
+        pytest
 
 # ── Smoke check at image-build time so a broken image fails the
 #    docker build, not the user's first pull. ──
 RUN python3 -c "import flash_rt; \
 print('flash_rt', flash_rt.__version__); \
+import fastapi, pandas, pyarrow, pytest, transformers, uvicorn; \
 from flash_rt import flash_rt_kernels, flash_rt_fa2; \
 assert callable(flash_rt_fa2.fwd_bf16); \
-print('kernels + fa2 OK')"
+print('runtime/test deps + kernels + fa2 OK')"
 
 # Default to a Python REPL with flash_rt pre-imported. Override with
 #   docker run --rm --gpus all -it flashrt:dev <your-command>

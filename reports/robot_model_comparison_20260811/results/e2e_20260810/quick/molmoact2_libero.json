@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "evaluation_scope": "closed_loop_raw_libero_observation_to_environment_action",
+  "model": "molmoact2_libero",
+  "checkpoint": "/workspace/models/MolmoAct2-LIBERO-LeRobot",
+  "protocol": {
+    "suites": [
+      "libero_spatial",
+      "libero_object",
+      "libero_goal",
+      "libero_10"
+    ],
+    "task_ids": [
+      0
+    ],
+    "episodes_per_task": 1,
+    "control_mode": "relative",
+    "camera_resolution": [
+      256,
+      256
+    ],
+    "seed_start": 0
+  },
+  "summary": {
+    "episodes": 4,
+    "successes": 4,
+    "success_rate_percent": 100.0,
+    "mean_episode_seconds": 7.675945371505804
+  },
+  "tasks": [
+    {
+      "suite": "libero_spatial",
+      "task_id": 0,
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 82,
+          "sum_reward": 1.0,
+          "wall_seconds": 4.505230864975601,
+          "observation_to_action_ms": {
+            "n": 82,
+            "p50": 11.06569595867768,
+            "p95": 145.30745201045647,
+            "mean": 41.231241011878524,
+            "min": 9.000099962577224,
+            "max": 1415.6459160149097
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 0,
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 140,
+          "sum_reward": 1.0,
+          "wall_seconds": 6.2686867550364695,
+          "observation_to_action_ms": {
+            "n": 140,
+            "p50": 12.093819037545472,
+            "p95": 148.71257002232596,
+            "mean": 31.019561979337595,
+            "min": 8.61127203097567,
+            "max": 831.9642770220526
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 0,
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 118,
+          "sum_reward": 1.0,
+          "wall_seconds": 5.754286886018235,
+          "observation_to_action_ms": {
+            "n": 118,
+            "p50": 13.110142957884818,
+            "p95": 152.17364899581298,
+            "mean": 34.22373210245712,
+            "min": 9.310497960541397,
+            "max": 870.2849730034359
+          }
+        }
+      ]
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 0,
+      "episodes": [
+        {
+          "episode": 0,
+          "seed": 0,
+          "success": true,
+          "steps": 253,
+          "sum_reward": 1.0,
+          "wall_seconds": 14.175576979992911,
+          "observation_to_action_ms": {
+            "n": 253,
+            "p50": 12.233829009346664,
+            "p95": 151.8860329524614,
+            "mean": 36.67594420837732,
+            "min": 9.4171580276452,
+            "max": 931.0643509961665
+          }
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "hostname": "5090",
+    "python": "3.12.3",
+    "torch": "2.9.0a0+145a3a7bda.nv25.10",
+    "cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 5090"
+  }
+}
