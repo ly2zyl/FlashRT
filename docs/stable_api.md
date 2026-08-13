@@ -35,7 +35,10 @@ def load_model(
     decode_cuda_graph: bool = False,
     decode_graph_steps: int = 80,
     max_decode_steps: int = 256,
-    hardware: str = "auto",         # "auto" | "thor" | "rtx_sm120" | "rtx_sm89" | "rtx_sm87"
+    hardware: str = "auto",         # + "m50_hmm_compat" (non-native)
+    compiled_model_dir: str | None = None,  # M50 Pi0.5 HMM bundle
+    tokenizer_path: str | None = None,      # M50 PaliGemma tokenizer
+    device_id: int = 0,                     # M50 XH2 device index
     # GROOT-specific:
     embodiment_tag: str | None = None,
     action_horizon: int | None = None,
@@ -67,6 +70,12 @@ def load_model(
 
 Returns a `VLAModel` wrapping the appropriate frontend for the detected
 (or explicitly specified) GPU architecture.
+
+- `hardware="m50_hmm_compat"` selects the non-native Houmo M50 Pi0.5 adapter. It uses
+  `compiled_model_dir` (or `FLASHRT_M50_MODEL_DIR`) for the HMM bundle,
+  `tokenizer_path` (or `FLASHRT_M50_TOKENIZER_DIR`) for the local PaliGemma
+  tokenizer, and `device_id` for the XH2 device index. See
+  [`m50_pi05.md`](m50_pi05.md).
 
 - `decode_cuda_graph`, `decode_graph_steps`, `max_decode_steps` apply to
   Pi0-FAST.

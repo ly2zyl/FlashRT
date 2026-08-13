@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "flash-rt"
 version = "0.1.0"
-description = "FlashRT — realtime CUDA inference engine for small-batch, latency-sensitive AI workloads. Ships VLA frontends for Pi0, Pi0.5, Pi0-FAST, GROOT N1.6/N1.7."
+description = "FlashRT — realtime accelerator inference for small-batch, latency-sensitive AI workloads."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 torch = ["torch", "safetensors", "sentencepiece"]
+m50 = ["torch", "safetensors", "sentencepiece", "transformers", "pillow"]
 jax = ["jax", "jaxlib", "ml_dtypes", "orbax-checkpoint", "flax"]
 server = ["fastapi", "uvicorn"]
 eval = ["opencv-python", "tqdm"]

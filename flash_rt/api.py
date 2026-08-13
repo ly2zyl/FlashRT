@@ -297,6 +297,9 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
                decode_cuda_graph=False, decode_graph_steps=80,
                max_decode_steps=256,
                hardware="auto",
+               compiled_model_dir=None,
+               tokenizer_path=None,
+               device_id=0,
                embodiment_tag=None,
                action_horizon=None,
                use_fp4=False,
@@ -362,9 +365,8 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             Graph for max throughput (trades startup time for per-token speed).
         decode_graph_steps: Pi0-FAST only. Number of action tokens to capture
             in the decode graph (default 80).
-        hardware: GPU backend selection. ``"auto"`` (default) detects the
-            current CUDA device via compute capability and picks the
-            best-matching backend:
+        hardware: accelerator backend selection. ``"auto"`` (default)
+            detects CUDA first and then Houmo M50/XH2:
               SM110 (Jetson Thor)  → ``flash_rt.hardware.thor.*``
               SM120 (RTX 5090)     → ``flash_rt.hardware.rtx.*``
                                      (falls back to Thor classes for models
@@ -375,9 +377,19 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
               SM87  (Jetson Orin)  → ``flash_rt.hardware.rtx.*`` (experimental,
                                      Pi0.5 torch only; BF16 default, INT8
                                      via Orin env flags)
+              M50/XH2              → ``flash_rt.frontends.m50.*``
             Pass ``"thor"`` / ``"rtx_sm120"`` / ``"rtx_sm89"`` /
             ``"rtx_sm87"`` explicitly to
             force a specific backend (useful for cross-hardware debugging).
+            ``"m50_hmm_compat"`` selects the non-native compatibility adapter
+            for an existing Houmo HMM bundle. ``"m50_xh2"`` is reserved for
+            the source-checkpoint native port and is not silently redirected.
+        compiled_model_dir: M50 HMM compatibility adapter only. Directory containing the six HMM
+            executable graphs and ``embedding.pt``. May also be supplied via
+            ``FLASHRT_M50_MODEL_DIR``.
+        tokenizer_path: M50 Pi0.5 only. Local PaliGemma tokenizer directory.
+            May also be supplied via ``FLASHRT_M50_TOKENIZER_DIR``.
+        device_id: M50 Pi0.5 only. XH2 device index (default 0).
         embodiment_tag: GROOT only. Per-embodiment MLP slot to load. Passing
             ``None`` uses the backend default (``"new_embodiment"`` — unfit
             for the base 3B checkpoint demo; see below). The GR00T-N1.6-3B
@@ -510,7 +522,11 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             "use_fp4_decoder/use_fa4 are unsupported with framework="
             "'jetson_pi'; use the Thor torch FP4/FA4 frontend instead")
 
-    if framework == "jetson_pi":
+    if framework == "houmo_llama":
+        if config != "llm":
+            raise ValueError(
+                f"Unknown Houmo Llama config: {config}. Supported: llm")
+    elif framework == "jetson_pi":
         if config not in ("pi0", "pi05", "llm", "mllm"):
             raise ValueError(
                 f"Unknown Jetson-PI config: {config}. "
@@ -523,9 +539,31 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             f"Supported: pi05, groot, groot_n17, pi0, pi0fast, motus, "
             f"wan22_ti2v_5b, cosmos3_video, cosmos3_edge, nexn2, "
             f"qwen36_moe")
-    if framework not in ("torch", "jax", "jetson_pi"):
+    if framework not in ("torch", "jax", "jetson_pi", "houmo_llama"):
         raise ValueError(
-            f"Unknown framework: {framework}. Supported: torch, jax, jetson_pi")
+            f"Unknown framework: {framework}. Supported: torch, jax, "
+            "jetson_pi, houmo_llama")
+
+    # Native FlashRT model-runtime provider linked to Houmo's HLIELLama
+    # libllama.  This is a text LLM, so return its generate() frontend rather
+    # than wrapping it in the VLA-only VLAModel surface.
+    if framework == "houmo_llama":
+        from flash_rt.frontends.houmo_llama.llm import LlmHoumoFrontend
+        # ``backend`` predates this provider and defaults to "cpu" for
+        # Jetson-PI.  Treat that untouched API default as Houmo for this
+        # explicitly selected framework; all other unsupported values fail.
+        houmo_backend = "houmo" if backend == "cpu" else backend
+        return LlmHoumoFrontend(
+            checkpoint,
+            backend=houmo_backend,
+            n_ctx=n_ctx,
+            n_threads=n_threads,
+            temp=temp,
+            top_k=top_k,
+            top_p=top_p,
+            seed=seed,
+            max_tokens=max_tokens,
+            lib_path=lib_path)
 
     # Drives the Jetson-PI provider through frt_model_runtime_v1 via ctypes.
     # No torch/jax or GPU architecture detection is involved. The action chunk
@@ -857,6 +895,12 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
         kwargs["hardware"] = arch
     if "use_fp8" in sig.parameters:
         kwargs["use_fp8"] = use_fp8
+    if "compiled_model_dir" in sig.parameters:
+        kwargs["compiled_model_dir"] = compiled_model_dir
+    if "tokenizer_path" in sig.parameters:
+        kwargs["tokenizer_path"] = tokenizer_path
+    if "device_id" in sig.parameters:
+        kwargs["device_id"] = device_id
     if use_fa4 and "use_fa4" in sig.parameters:
         kwargs["use_fa4"] = True
     if config == "pi0fast":

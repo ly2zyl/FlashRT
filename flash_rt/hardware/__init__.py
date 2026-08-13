@@ -29,28 +29,50 @@ to ``_PIPELINE_MAP`` for each (config, framework, new_arch) combination.
 from __future__ import annotations
 
 
+def _detect_m50() -> bool:
+    """Return whether ``tcim_lite`` can see a Houmo XH2 device.
+
+    ``tcim_lite`` is an optional deployment-image dependency, so every error
+    is treated as "not present" here.  The M50 frontend reports detailed
+    import/device errors after it has actually been selected.
+    """
+    try:
+        import tcim_lite as tcim
+
+        return int(tcim.runtime.get_device_num("Xh2HalBackend")) > 0
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def detect_arch() -> str:
-    """Return a short string identifier for the current CUDA device.
+    """Return a short string identifier for the current accelerator.
 
     Supported:
         ``"thor"``      — Jetson AGX Thor, SM110 (cc 11.0)
         ``"rtx_sm120"`` — RTX 5090 / DGX Spark GB10 Blackwell, SM120/SM121
         ``"rtx_sm89"``  — RTX 4090 / Ada, SM89 (cc 8.9)
         ``"rtx_sm87"``  — Jetson Orin via RTX consumer backend, SM87 (cc 8.7)
+        ``"m50_xh2"``   — Houmo M50 through the Dadao ``tcim_lite`` runtime
 
-    Raises RuntimeError if CUDA is unavailable or the card has an
-    unsupported SM level. Deliberately strict: silently falling back to
-    the wrong backend would hide latency/correctness regressions.
+    CUDA remains the first auto-detected backend for compatibility.  If CUDA
+    is unavailable, detection reports the M50 hardware identifier.  A native
+    M50 pipeline must register that identifier explicitly; the legacy HMM
+    adapter is available only as ``m50_hmm_compat`` and is never auto-selected.
     """
     try:
         import torch
     except ImportError as e:
+        if _detect_m50():
+            return "m50_xh2"
         raise RuntimeError(
-            "FlashRT requires PyTorch for GPU detection") from e
+            "FlashRT requires PyTorch for accelerator preprocessing and "
+            "found no M50 device through tcim_lite") from e
     if not torch.cuda.is_available():
+        if _detect_m50():
+            return "m50_xh2"
         raise RuntimeError(
-            "FlashRT requires a CUDA-capable GPU "
-            "(torch.cuda.is_available()==False)")
+            "FlashRT found neither a supported CUDA GPU nor a Houmo M50/XH2 "
+            "device visible through tcim_lite")
     major, minor = torch.cuda.get_device_capability()
     if (major, minor) == (11, 0):
         return "thor"
@@ -73,6 +95,10 @@ def detect_arch() -> str:
 # to register new models — see ``docs/plugin_model_template.md``.
 _PIPELINE_MAP: dict[tuple[str, str, str], tuple[str, str]] = {
     # ── Pi0.5 ──
+    # Compatibility adapter only: this consumes an already-compiled Houmo HMM
+    # bundle and is not the native FlashRT M50 backend.
+    ("pi05", "torch", "m50_hmm_compat"):
+        ("flash_rt.frontends.m50.pi05", "Pi05M50Frontend"),
     ("pi05", "torch", "thor"):
         ("flash_rt.frontends.torch.pi05_thor", "Pi05TorchFrontendThor"),
     ("pi05", "torch", "rtx_sm120"):

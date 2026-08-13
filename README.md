@@ -4,6 +4,9 @@
 
 # FlashRT
 
+> 后摩 M50/Qwen3.6 HLIELLama 适配的当前进展、构建命令与续作入口见
+> [docs/m50_qwen_hliellama_handoff_zh.md](docs/m50_qwen_hliellama_handoff_zh.md)。
+
 **FlashRT is a high-performance realtime inference engine for small-batch, latency-sensitive AI workloads.**
 
 <p align="center">
@@ -12,7 +15,7 @@
   | <a href="https://github.com/LiangSu8899/FlashRT-Nexus"><b>Nexus</b></a> |
 </p>
 
-A general kernel library composed into static graphs — no ONNX export, no engine compilation, no per-driver rebuild. Hand-written kernels (norm / activation / fusion / RoPE / FP8 / NVFP4 GEMM / attention) cover standard transformer, DiT, and SigLIP primitives. The composition pattern itself is hardware-agnostic; today the codebase ships with NVIDIA implementations spanning edge to server (Jetson AGX Thor through A100 / RTX 4090 / 5090).
+A general kernel library composed into static graphs. Hand-written NVIDIA kernels (norm / activation / fusion / RoPE / FP8 / NVFP4 GEMM / attention) cover standard transformer, DiT, and SigLIP primitives. The composition pattern is hardware-agnostic; the codebase now also includes a Pi0.5 provider for Houmo M50/XH2 that schedules Dadao-compiled HMM graphs through `tcim_lite`.
 
 The flagship integration today is **VLA control** — production frontends for Pi0, Pi0.5, GROOT N1.6, GROOT N1.7, and Pi0-FAST, validated on LIBERO where applicable. The same kernel set also powers BAGEL world-model research paths, Higgs Audio v3 TTS, Wan2.2 / Motus video-policy paths, and **single-stream LLM inference** with Qwen3.6-27B NVFP4 long-context serving. The pattern is workload-shaped (small-batch realtime), not model-class-shaped.
 
@@ -30,7 +33,7 @@ Existing inference tooling is shaped for different workloads — TensorRT for ta
 ## FlashRT is easy to use with:
 
 - **3-line API**: `flash_rt.load_model(...).predict(images, prompt)`
-- **Auto-dispatched hardware**: same code path on Jetson Thor / RTX 5090 / RTX 4090
+- **Auto-dispatched hardware**: same API on Jetson Thor / RTX 5090 / RTX 4090 / Houmo M50
 - **PyTorch and JAX frontends** share one kernel binary, equivalent results (cosine ≥ 0.999)
 - **Plugin model registration** — add a new VLA via one frontend file + a declarative `WEIGHT_SPEC`, no fork required
 - **LIBERO benchmark integration** out of the box; ~6 minutes from `git clone` to first inference
@@ -293,6 +296,7 @@ First call: ~3 s (calibration + CUDA Graph capture). Every subsequent call: 44 m
 | If you want to … | Read |
 |---|---|
 | **Run your first inference** | [Build & install](#build--install) — Docker and native Linux paths |
+| **Run Pi0.5 on Houmo M50/XH2** | [`docs/m50_pi05.md`](docs/m50_pi05.md) — HMM bundle, environment doctor, smoke test, and LIBERO loop |
 | **See API examples for all 4 VLA models + the Qwen3.6 LLM** | [API snippets](#api-snippets) |
 | **Run Qwen3.6-27B NVFP4 (LLM, 256 K on RTX 5090; Spark/GB10 supported)** | [`docs/qwen36_nvfp4.md`](docs/qwen36_nvfp4.md) — quickstart, K selection, measured throughput · [`docs/qwen36_spark.md`](docs/qwen36_spark.md) — DGX Spark usage and performance · [`docs/qwen36_usage.md`](docs/qwen36_usage.md) — full parameter reference · [`serving/qwen36_agent/`](serving/qwen36_agent/README.md) — OpenAI-compatible HTTP server |
 | **Run Qwen3-8B NVFP4 text serving** | [`docs/qwen3_8b_nvfp4.md`](docs/qwen3_8b_nvfp4.md) · [`examples/qwen3_openai_server.py`](examples/qwen3_openai_server.py) |
@@ -1091,7 +1095,7 @@ examples/
 
 ## Supported Models
 
-- **Pi0.5** (`config="pi05"`) — [quickstart](#quick-start), [API reference](USAGE.md#api-reference), [NVFP4 notes](USAGE.md#nvfp4-pi05-only), [Thor example](examples/thor/README.md), [RTX 5090 example](examples/blackwell/README.md)
+- **Pi0.5** (`config="pi05"`) — [quickstart](#quick-start), [API reference](USAGE.md#api-reference), [M50/XH2 deployment](docs/m50_pi05.md), [NVFP4 notes](USAGE.md#nvfp4-pi05-only), [Thor example](examples/thor/README.md), [RTX 5090 example](examples/blackwell/README.md)
 - **Pi0** (`config="pi0"`) — [API snippets](#api-snippets), [usage guide](USAGE.md#api-reference)
 - **GROOT N1.6** (`config="groot"`) — [API snippets](#api-snippets), [GROOT embodiment slots](#groot-n16-embodiment-slots)
 - **GROOT N1.7** (`config="groot_n17"`) — 23.7 ms on Jetson AGX Thor (NVFP4 + FA4 tier, LIBERO 1-view; 36.8 ms FP8), 16.6 ms on RTX 5090 (2-view base, full graph); [usage guide](USAGE.md#groot-n17-rtx), [API snippet](#groot-n17-rtx)
@@ -1115,12 +1119,13 @@ examples/
 
 ## Hardware Support
 
-FlashRT's shipped implementations are NVIDIA CUDA today. The kernel
-composition pattern is not NVIDIA-specific, but the current tested
-artifacts and dispatch map are.
+FlashRT ships native NVIDIA CUDA implementations and an M50/XH2 provider for
+Pi0.5. The M50 path uses Dadao HMM executables instead of CUDA kernels and
+requires a bundle compiled for the installed SDK/driver/firmware release.
 
 | Hardware | SM | Status | Validated paths / notes |
 |---|---:|---|---|
+| Houmo M50 / XH2 | — | Backend implemented; device validation pending bundle | Pi0.5 batch-1 scheduling through `tcim_lite`; dispatch/resource unit tests pass. A matching six-graph HMM bundle and `embedding.pt` are required. See [M50 deployment](docs/m50_pi05.md). |
 | Jetson AGX Thor | SM110 | Production target | Pi0, Pi0.5, GROOT N1.6, Pi0-FAST, Qwen3.6 Thor path, Lingbot, Cosmos3-Edge AV/Reasoner, and Qwen3-VL BF16 with opt-in W8/W4 decode ([docs](docs/qwen3_vl_thor.md)); CUTLASS FMHA / Thor attention paths; Pi0.5 FP8 and NVFP4 validation live in [examples/thor](examples/thor/README.md#thor-vla-performance). |
 | RTX 5090 | SM120 | Production target | Pi0/Pi0.5/GROOT/Pi0-FAST RTX paths, Qwen3.6, Qwen3-8B, Qwen3-VL, Higgs Audio v3 FP8, Motus, Wan2.2, Cosmos3-Nano, and HF Kernel Hub package validation; see [RTX 5090 latency](examples/blackwell/README.md#vla-latency-rtx-5090). |
 | RTX 4090 | SM89 | Validated / supported target | RTX VLA build path and deployment recipe; Higgs BF16 path compiles/configures. See [deployment_rtx4090.md](docs/deployment_rtx4090.md). |

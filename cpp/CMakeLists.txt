@@ -37,10 +37,14 @@ option(FLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER
        "Build the optional llama.cpp provider frontend" OFF)
 option(FLASHRT_CPP_WITH_JETSON_PI
        "Back the llama.cpp provider with Jetson-PI" OFF)
+option(FLASHRT_CPP_WITH_HOUMO_LLAMA
+       "Back the llama.cpp provider with Houmo HLIELLama for M50/XH2" OFF)
 set(JETSON_PI_ROOT "" CACHE PATH
     "Jetson-PI source root for an in-tree provider build")
 set(JetsonPI_ROOT "" CACHE PATH
     "Jetson-PI install prefix for a packaged provider build")
+set(HoumoLlama_ROOT "" CACHE PATH
+    "Houmo HLIELLama install prefix containing include/llama.h and lib/libllama.so")
 if((FLASHRT_CPP_WITH_PI05 OR FLASHRT_CPP_WITH_SENTENCEPIECE) AND
    NOT FLASHRT_ENABLE_NATIVE_CPP)
   message(FATAL_ERROR
@@ -58,6 +62,16 @@ if(FLASHRT_CPP_WITH_JETSON_PI AND
   message(FATAL_ERROR
     "FLASHRT_CPP_WITH_JETSON_PI requires "
     "FLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER=ON")
+endif()
+if(FLASHRT_CPP_WITH_HOUMO_LLAMA AND
+   NOT FLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER)
+  message(FATAL_ERROR
+    "FLASHRT_CPP_WITH_HOUMO_LLAMA requires "
+    "FLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER=ON")
+endif()
+if(FLASHRT_CPP_WITH_JETSON_PI AND FLASHRT_CPP_WITH_HOUMO_LLAMA)
+  message(FATAL_ERROR
+    "Select exactly one real llama.cpp engine backend per provider build")
 endif()
 if(FLASHRT_ENABLE_NATIVE_CPP AND NOT FLASHRT_CPP_WITH_EXEC)
   message(FATAL_ERROR
@@ -125,6 +139,21 @@ if(FLASHRT_CPP_WITH_JETSON_PI)
     set(_flashrt_jetson_pi_llm JetsonPI::jetson_pi_llm)
     set(_flashrt_jetson_pi_mllm JetsonPI::jetson_pi_mllm)
   endif()
+endif()
+if(FLASHRT_CPP_WITH_HOUMO_LLAMA)
+  if(NOT HoumoLlama_ROOT)
+    message(FATAL_ERROR
+      "FLASHRT_CPP_WITH_HOUMO_LLAMA requires HoumoLlama_ROOT")
+  endif()
+  if(NOT EXISTS "${HoumoLlama_ROOT}/include/llama.h" OR
+     NOT EXISTS "${HoumoLlama_ROOT}/lib/libllama.so")
+    message(FATAL_ERROR
+      "HoumoLlama_ROOT must contain include/llama.h and lib/libllama.so")
+  endif()
+  add_library(HoumoLlama::llama SHARED IMPORTED GLOBAL)
+  set_target_properties(HoumoLlama::llama PROPERTIES
+    IMPORTED_LOCATION "${HoumoLlama_ROOT}/lib/libllama.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${HoumoLlama_ROOT}/include")
 endif()
 if(FLASHRT_CPP_WITH_PI05_SM120_TARGET)
   if(NOT FLASHRT_CPP_WITH_CUDA_KERNELS)
@@ -325,6 +354,41 @@ if(FLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER)
       target_link_options(flashrt_cpp_llama_cpp_provider_c PRIVATE
         "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/providers/llama_cpp/provider_exports.map"
         "LINKER:--disable-new-dtags")
+    endif()
+    set_target_properties(flashrt_cpp_llama_cpp_provider_c PROPERTIES
+      INSTALL_RPATH "$ORIGIN")
+    install(TARGETS flashrt_cpp_llama_cpp_provider_c flashrt_runtime
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/../runtime/include/flashrt/model_runtime.h
+      ${CMAKE_CURRENT_SOURCE_DIR}/../runtime/include/flashrt/runtime.h
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/flashrt)
+  elseif(FLASHRT_CPP_WITH_HOUMO_LLAMA)
+    target_sources(flashrt_cpp_llama_cpp_provider PRIVATE
+      providers/llama_cpp/src/houmo_llama_engine.cpp)
+    target_compile_definitions(flashrt_cpp_llama_cpp_provider PRIVATE
+      FLASHRT_CPP_WITH_HOUMO_LLAMA=1)
+    target_link_libraries(flashrt_cpp_llama_cpp_provider PRIVATE
+      HoumoLlama::llama)
+
+    add_library(flashrt_cpp_llama_cpp_provider_c SHARED
+      providers/llama_cpp/src/checkpoint_identity.cpp
+      providers/llama_cpp/src/pi0_runtime.cpp
+      providers/llama_cpp/src/llm_runtime.cpp
+      providers/llama_cpp/src/mllm_runtime.cpp
+      providers/llama_cpp/src/houmo_llama_engine.cpp
+      providers/llama_cpp/src/provider_open.cpp)
+    target_include_directories(flashrt_cpp_llama_cpp_provider_c PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/providers/llama_cpp/include)
+    target_compile_definitions(flashrt_cpp_llama_cpp_provider_c PRIVATE
+      FLASHRT_CPP_WITH_HOUMO_LLAMA=1)
+    target_compile_options(flashrt_cpp_llama_cpp_provider_c PRIVATE
+      $<$<COMPILE_LANGUAGE:CXX>:-fvisibility=hidden>)
+    target_link_libraries(flashrt_cpp_llama_cpp_provider_c PRIVATE
+      flashrt_runtime HoumoLlama::llama)
+    if(UNIX AND NOT APPLE)
+      target_link_options(flashrt_cpp_llama_cpp_provider_c PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/providers/llama_cpp/provider_exports.map")
     endif()
     set_target_properties(flashrt_cpp_llama_cpp_provider_c PROPERTIES
       INSTALL_RPATH "$ORIGIN")
