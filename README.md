@@ -6,6 +6,9 @@
 
 > 后摩 M50/Qwen3.6 HLIELLama 适配的当前进展、构建命令与续作入口见
 > [docs/m50_qwen_hliellama_handoff_zh.md](docs/m50_qwen_hliellama_handoff_zh.md)。
+>
+> 完整的跨机器环境、版本和部署复现手册见
+> [docs/m50_reproducible_deployment_zh.md](docs/m50_reproducible_deployment_zh.md)。
 
 **FlashRT is a high-performance realtime inference engine for small-batch, latency-sensitive AI workloads.**
 
