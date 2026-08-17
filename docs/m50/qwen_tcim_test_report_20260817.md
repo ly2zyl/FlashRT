@@ -39,8 +39,10 @@ GGUF 是本次模型交付容器。FlashRT 根据文件偏移加载其中的 HMM
 | 模型文件 | `HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf` |
 | 输入规格 | prefill 256 token，context 32768 token，embedding 151936 × 1024 FP16 |
 
-模型文件大小为 1,006,385,824 bytes。`quant_embedding.bin`、`prefill.hmm`、
-`decoder.hmm` 和 tokenizer 资产均通过文件范围检查。
+模型文件大小为 1,006,385,824 bytes，SHA-256 为
+`1fb11253f607e6209e77ae32a8b01318142afcccacd4f61c65f6145076b7dd2a`。
+`quant_embedding.bin`、`prefill.hmm`、`decoder.hmm` 和 tokenizer 资产均通过
+文件范围检查。
 
 ## 4. 测试方法
 
@@ -92,34 +94,167 @@ Token IDs：[151667, 271, 151668, 271, 17, 151645]
 
 - [`results/qwen3_0.6b_tcim_20260817.json`](results/qwen3_0.6b_tcim_20260817.json)
 - [`results/qwen3_0.6b_tcim_throughput_20260817.json`](results/qwen3_0.6b_tcim_throughput_20260817.json)
+- [`results/qwen3_0.6b_tcim_runtime_check_20260817.json`](results/qwen3_0.6b_tcim_runtime_check_20260817.json)
 
-## 7. 复现命令
+## 7. 测试命令及结果
+
+以下命令均在 `/home/sky/icode/FlashRT` 下执行。运行模型测试前先进入独立虚拟
+环境并设置模型路径：
 
 ```bash
 cd /home/sky/icode/FlashRT
-
-PYTHONDONTWRITEBYTECODE=1 \
-/home/sky/icode/.venv-m50-runtime/bin/pytest -q \
-  tests/test_m50_qwen_frontend.py
+source /home/sky/icode/.venv-m50-runtime/bin/activate
 
 export MODEL_GGUF=/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf
+```
+
+### 7.1 设备及模型文件检查
+
+测试命令：
+
+```bash
+hm_smi
+stat -c 'size_bytes=%s' "$MODEL_GGUF"
+sha256sum "$MODEL_GGUF"
+```
+
+关键结果：
+
+```text
+HMSW_Version     : V1.4.0
+Driver_Version   : V1.4.0
+Firmware_Version : V1.4.0
+Dev              : 0
+Group_Id         : 0
+Chip_Id          : 0
+size_bytes=1006385824
+1fb11253f607e6209e77ae32a8b01318142afcccacd4f61c65f6145076b7dd2a
+```
+
+设备识别正常，模型文件大小及摘要与本报告记录一致。
+
+### 7.2 FlashRT M50/Qwen 单元测试
+
+测试命令：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 \
+pytest -q tests/test_m50_qwen_frontend.py
+```
+
+测试结果：
+
+```text
+..........                                                               [100%]
+10 passed in 0.26s
+```
+
+10 项测试覆盖 GGUF 资产索引、TCIM API 分发、非法参数拒绝、EOG 状态保护和
+embedding mmap 释放。
+
+### 7.3 短回答正确性和重复性测试
+
+测试命令：
+
+```bash
+export MAX_TOKENS=32
+export REPEAT=3
+export PROMPT='请只输出数字2，不要输出其他内容。 /no_think'
+export RESULT_JSON=/home/sky/icode/FlashRT/docs/m50/results/qwen3_0.6b_tcim_20260817.json
+
+bash examples/m50/run_qwen_tcim.sh
+```
+
+关键结果：
+
+```text
+三次输出文本：<think>\n\n</think>\n\n2
+三次 Token IDs：[151667, 271, 151668, 271, 17, 151645]
+Token IDs 重复性：3/3 一致
+EOG：三次均为 true
+libllama_mapped：false
+tcim_runtime_mapped：true
+Prefill HMM 中位时延：26.442 ms
+TCIM decoder 图中位吞吐：72.152 step/s
+```
+
+该结果表明相同输入能够稳定产生相同 token 序列，进程使用 TCIM Runtime，未
+加载 `libllama.so`。
+
+### 7.4 固定长度性能测试
+
+测试命令：
+
+```bash
 export MAX_TOKENS=32
 export REPEAT=3
 export PROMPT='请用中文详细说明矩阵乘法的计算过程，并给出一个例子。 /no_think'
 export RESULT_JSON=/home/sky/icode/FlashRT/docs/m50/results/qwen3_0.6b_tcim_throughput_20260817.json
 
-examples/m50/run_qwen_tcim.sh
+bash examples/m50/run_qwen_tcim.sh
 ```
 
-结果应满足：
+关键结果：
 
-```json
-{
-  "libllama_mapped": false,
-  "tcim_runtime_mapped": true,
-  "token_ids_repeatable": true
-}
+```text
+模型加载时间：14.399 s
+三次 Prefill HMM 时延：27.249、26.243、26.267 ms
+三次端到端输出吞吐：42.197、39.676、41.427 token/s
+端到端输出吞吐中位数：41.427 token/s
+TCIM decoder 图吞吐中位数：71.658 step/s
+Decode 图外 host 时间中位数：339.823 ms / 32 token
+Token IDs 重复性：3/3 一致
+libllama_mapped：false
+tcim_runtime_mapped：true
 ```
+
+每次生成 32 个 token，其中首个 token 取自 prefill logits，随后执行 31 次
+decoder HMM。三次运行的 token 序列完全相同。全部逐次数据和输出文本保存在
+第 6 节列出的 JSON 文件中。
+
+### 7.5 会话状态和资源释放测试
+
+测试命令：
+
+```bash
+export PYTHONPATH=/home/sky/icode/FlashRT
+export XDG_DATA_HOME=/home/sky/icode/FlashRT/.cache/m50/xdg
+export TCIM_BACKEND=Xh2HalBackend
+export LD_LIBRARY_PATH=/opt/houmo-tcim-runtime-1.4.0/lib:/usr/local/houmo-sdk/hal/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+python examples/m50/qwen_tcim_runtime_check.py \
+  --model "$MODEL_GGUF" \
+  --max-tokens 16 \
+  --output-json docs/m50/results/qwen3_0.6b_tcim_runtime_check_20260817.json
+```
+
+关键结果：
+
+```text
+同一模型实例连续输出：2、3、2
+session_isolation_passed：true
+physical_kv_reset_repeatable：true
+eog_guard_passed：true
+模型文件描述符：0 → 1 → 0
+libllama_mapped：false
+tcim_runtime_mapped：true
+```
+
+三次会话的完整输出分别为 `<think>\n\n</think>\n\n2`、
+`<think>\n\n</think>\n\n3` 和 `<think>\n\n</think>\n\n2`。启用
+`zero_kv_on_reset=True` 后，对相同提示连续执行两次所得 token 序列一致；生成结束
+后继续调用 `decode()` 被正确拒绝；`close()` 后模型文件描述符恢复为 0。
+
+### 7.6 测试后设备检查
+
+测试命令：
+
+```bash
+hm_smi
+```
+
+测试结果：device 0 能够正常读取，Driver 和 Firmware 仍为 V1.4.0，测试过程未
+导致设备失联或驱动异常。
 
 ## 8. 适用边界
 

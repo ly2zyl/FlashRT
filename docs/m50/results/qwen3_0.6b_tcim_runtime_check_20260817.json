@@ -1,0 +1,59 @@
+{
+  "model": "/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf",
+  "session_runs": [
+    {
+      "prompt": "请只输出数字2，不要输出其他内容。 /no_think",
+      "text": "<think>\n\n</think>\n\n2",
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        17,
+        151645
+      ],
+      "eog": true
+    },
+    {
+      "prompt": "请只输出数字3，不要输出其他内容。 /no_think",
+      "text": "<think>\n\n</think>\n\n3",
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        18,
+        151645
+      ],
+      "eog": true
+    },
+    {
+      "prompt": "请只输出数字2，不要输出其他内容。 /no_think",
+      "text": "<think>\n\n</think>\n\n2",
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        17,
+        151645
+      ],
+      "eog": true
+    }
+  ],
+  "session_outputs": [
+    "<think>\n\n</think>\n\n2",
+    "<think>\n\n</think>\n\n3",
+    "<think>\n\n</think>\n\n2"
+  ],
+  "session_isolation_passed": true,
+  "physical_kv_reset_repeatable": true,
+  "eog_guard_passed": true,
+  "model_file_descriptors": {
+    "before_load": 0,
+    "while_loaded": 1,
+    "after_close": 0
+  },
+  "libllama_mapped": false,
+  "tcim_runtime_mapped": true
+}

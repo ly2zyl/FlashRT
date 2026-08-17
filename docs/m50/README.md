@@ -14,7 +14,8 @@ docs/m50/
 ├── qwen_tcim_test_report_20260817.md
 └── results/
     ├── qwen3_0.6b_tcim_20260817.json
-    └── qwen3_0.6b_tcim_throughput_20260817.json
+    ├── qwen3_0.6b_tcim_throughput_20260817.json
+    └── qwen3_0.6b_tcim_runtime_check_20260817.json
 ```
 
 | 文件 | 内容 | 状态 |
