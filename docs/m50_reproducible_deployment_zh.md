@@ -16,16 +16,9 @@
 以下目录只读使用：
 
 ```text
-/home/sky/houmo-HLIELLama-xh2
 /usr/local/houmo-sdk
 /usr/local/houmo
 /opt/houmo-tcim-runtime-1.4.0
-```
-
-必须修改第三方文件时先复制：
-
-```bash
-cp -a /home/sky/houmo-HLIELLama-xh2 /home/sky/icode/houmo-HLIELLama-xh2-local
 ```
 
 ## 2. 机器和配件版本
@@ -135,105 +128,69 @@ HOUMO_EXAMPLES_PATH=/home/sky/icode/houmo-examples-xh2_v1.4.0/houmo-examples-xh2
 本机没有公开 PyPI 可安装的 `xhquant` 和 `tcim.builder`；它们属于后摩授权的
 量化/编译工具链，需要官方开发镜像或 wheel。
 
-## 5. FlashRT 版本和构建
+## 5. FlashRT 版本和原生 TCIM 后端
 
 ```text
 源码：/home/sky/icode/FlashRT
-分支：codex/m50-qwen-hliellama-handoff
+分支：codex/m50-qwen-tcim-native
 ```
 
 使用 `git rev-parse HEAD` 记录实际复现实验所用提交。
 
-构建：
+Qwen M50 路径是 Python FlashRT frontend 直接调用 `tcim_lite`，不依赖
+llama.cpp/HLIELLama，不需要构建额外 C++ Provider。安装 FlashRT 本地源码：
 
 ```bash
 cd /home/sky/icode/FlashRT
-/home/sky/icode/.venv-m50-runtime/bin/cmake -S cpp -B build/houmo-llama \
-  -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
-  -DFLASHRT_CPP_WITH_EXEC=OFF \
-  -DFLASHRT_CPP_WITH_CUDA_STAGING=OFF \
-  -DFLASHRT_CPP_WITH_CUDA_KERNELS=OFF \
-  -DFLASHRT_CPP_WITH_LLAMA_CPP_PROVIDER=ON \
-  -DFLASHRT_CPP_WITH_HOUMO_LLAMA=ON \
-  -DHoumoLlama_ROOT=/home/sky/houmo-HLIELLama-xh2
-/home/sky/icode/.venv-m50-runtime/bin/cmake --build build/houmo-llama \
-  --target flashrt_cpp_llama_cpp_provider_c --parallel 2
+/home/sky/icode/.venv-m50-runtime/bin/python -m pip install -e .
 ```
 
-产物：
+关键实现：
 
 ```text
-/home/sky/icode/FlashRT/build/houmo-llama/libflashrt_cpp_llama_cpp_provider_c.so
-/home/sky/icode/FlashRT/build/houmo-llama/runtime/libflashrt_runtime.so
+flash_rt/frontends/m50/gguf_assets.py
+flash_rt/frontends/m50/qwen.py
+examples/m50/qwen_tcim.py
+examples/m50/run_qwen_tcim.sh
 ```
 
-这是 Python API → FlashRT C ABI → 后摩 `libllama.so` → M50 的原生 provider，
-不是在 FlashRT 中启动 `llama-cli` 子进程。
+执行链路为 `FlashRT → tcim_lite → TCIM Runtime → M50`。
 
-## 6. Qwen3.6 测试模型和版本
+## 6. Qwen 测试模型
 
 模型路径（只读）：
 
 ```text
-/home/sky/houmo-HLIELLama-xh2/models/qwen3.6_35b-a3b_w4a8_262144_1_1/HiModel_xh2_qwen3.6-35b-a3b_w4a8_256_256k_b1_1chip_2cores_v1.4.0_20260716.gguf
+/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf
 ```
 
-大小为 `21263621984 bytes`（约 19.79 GiB）。元数据为：
+大小为 `1006385824 bytes`。元数据为：
 
 ```text
-architecture=qwen35moe
+architecture=qwen3
 is_hmm=true
 target=xh2
 core_num=2
-version=v1.4.0
-context_length=262144
+version=v1.2.0
+context_length=32768
 ```
 
-HLIELLama 版本：
+## 7. FlashRT 测试命令
 
-```text
-llama.cpp=2.1.1
-description=lanyue2.1.0
-tcim_version=1.3.0
-last_update=20260704
-```
-
-`convert_hm_to_gguf.py`、`readhmm`、`hmmstrip` 是封装/辅助工具，不是
-PyTorch→M50 的量化编译器。
-
-## 7. 后摩 Llama 基线
-
-```bash
-export LD_LIBRARY_PATH=/home/sky/houmo-HLIELLama-xh2/lib:/opt/houmo-tcim-runtime-1.4.0/lib
-export LLAMA_LOG_VERBOSITY=1
-/home/sky/houmo-HLIELLama-xh2/bin/llama-cli \
-  --model /home/sky/houmo-HLIELLama-xh2/models/qwen3.6_35b-a3b_w4a8_262144_1_1/HiModel_xh2_qwen3.6-35b-a3b_w4a8_256_256k_b1_1chip_2cores_v1.4.0_20260716.gguf \
-  --ctx-size 512 --predict 8 --temp 0 \
-  --conversation --single-turn --simple-io --no-display-prompt \
-  --prompt '请只回答一个数字：一加一等于多少？'
-```
-
-本机基线成功，性能约为 prompt `75.9 token/s`、generation `20.7 token/s`。
-
-## 8. FlashRT 测试命令
-
-示例为 `/home/sky/icode/FlashRT/examples/m50/qwen_hliellama.py`，推荐通过环境
-封装脚本运行：
+推荐通过环境封装脚本运行：
 
 ```bash
 cd /home/sky/icode/FlashRT
-export MODEL_GGUF=/home/sky/houmo-HLIELLama-xh2/models/qwen3.6_35b-a3b_w4a8_262144_1_1/HiModel_xh2_qwen3.6-35b-a3b_w4a8_256_256k_b1_1chip_2cores_v1.4.0_20260716.gguf
-export MODEL_SHA256_FILE=/home/sky/icode/FlashRT/artifacts/m50_qwen/cache/qwen3.6_35b_a3b.sha256
-export MODE=staged
-export MAX_TOKENS=8
-examples/m50/run_qwen_hliellama.sh
+export MODEL_GGUF=/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf
+export MAX_TOKENS=32
+export REPEAT=3
+examples/m50/run_qwen_tcim.sh
 ```
 
-FlashRT 已完成 0.6B 和 35B-A3B 两个 Qwen 模型的 M50 实机推理。35B-A3B
-完整结束测试的 prefill 为 276.346 ms，decode 为 20.713 token/s；详细实现、
-结果和 SHA-256 使用要求见 `docs/m50_qwen_hliellama_handoff_zh.md`。
+实机结果为 prefill HMM 26.715 ms、decode 40.485 token/s，且进程未映射
+`libllama.so`。详见 `docs/m50_qwen_tcim_native_zh.md`。
 
-## 9. 换机器复现检查表
+## 8. 换机器复现检查表
 
 ```bash
 uname -m
@@ -247,16 +204,14 @@ gcc --version
 
 ```text
 /usr/local/houmo-sdk/hal/lib/libhal_xh2a.so
-/home/sky/houmo-HLIELLama-xh2/lib/libllama.so
-对应的 Qwen GGUF
-FlashRT/build/houmo-llama/libflashrt_cpp_llama_cpp_provider_c.so
+/opt/houmo-tcim-runtime-1.4.0/lib/libtcim_runtime_lite.so
+包含 `prefill.hmm`、`decoder.hmm`、embedding 和 tokenizer 的 Qwen GGUF
 ```
 
-先执行第 7 节基线，再执行第 8 节 FlashRT。首次加载 21 GB 模型可能需要数
-分钟，不要同时启动第二个大模型进程。模型摘要只应在首次校验成功且模型保持
-只读时作为预校验标识复用。
+测试结果中的 `libllama_mapped` 必须为 `false`，`tcim_runtime_mapped` 必须为
+`true`。Tokenizer 小文件会自动缓存到 FlashRT 仓库的 `.cache` 目录。
 
-## 10. Pi0.5 清理和限制
+## 9. Pi0.5 清理和限制
 
 已确认无用的 Pi0.5 专用环境：
 

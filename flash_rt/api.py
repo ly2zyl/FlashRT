@@ -326,6 +326,8 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
                action_dim=None,
                lib_path=None,
                model_identity=None,
+               tokenizer_cache_dir=None,
+               zero_kv_on_reset=False,
                n_ctx=0,
                n_threads=0,
                temp=0.8,
@@ -342,8 +344,8 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
         checkpoint: path to checkpoint directory.
             - torch: safetensors directory
             - jax: Orbax checkpoint directory
-            - houmo_llama: GGUF model file
-        framework: "torch" or "jax"
+            - tcim/qwen: Houmo GGUF containing M50 HMM assets
+        framework: "torch", "jax", "jetson_pi", or "tcim"
         num_views: number of camera views (default 2)
         autotune: CUDA Graph autotune intensity.
             0 or False = off (fastest startup, ~2ms slower inference risk)
@@ -356,7 +358,7 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             after first load. Only affects JAX.
         config: model config name: "pi05", "pi0", "groot", "groot_n17",
             "pi0fast", "motus", "wan22_ti2v_5b", "cosmos3_video",
-            "cosmos3_edge".
+            "cosmos3_edge", or "qwen" with framework="tcim".
             "cosmos3_video" is a non-VLA text2video denoise model: drive it with
             set_prompt(ref=<reference dump>) + infer(...), not predict().
             "cosmos3_edge" is the official Cosmos Framework Thor baseline
@@ -366,6 +368,10 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
         model_identity: optional pre-verified lowercase SHA-256 for a GGUF
             model. This avoids hashing a large immutable model at every load.
             If omitted, the provider computes the identity from the file.
+        tokenizer_cache_dir: optional directory for tokenizer assets extracted
+            from a Houmo Qwen GGUF by the native TCIM frontend.
+        zero_kv_on_reset: TCIM Qwen only. Physically clear the device KV cache
+            between requests instead of resetting its logical valid length.
         decode_cuda_graph: Pi0-FAST only. Capture action-phase decode as CUDA
             Graph for max throughput (trades startup time for per-token speed).
         decode_graph_steps: Pi0-FAST only. Number of action tokens to capture
@@ -527,10 +533,10 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             "use_fp4_decoder/use_fa4 are unsupported with framework="
             "'jetson_pi'; use the Thor torch FP4/FA4 frontend instead")
 
-    if framework == "houmo_llama":
-        if config != "llm":
+    if framework == "tcim":
+        if config != "qwen":
             raise ValueError(
-                f"Unknown Houmo Llama config: {config}. Supported: llm")
+                f"Unknown TCIM config: {config}. Supported: qwen")
     elif framework == "jetson_pi":
         if config not in ("pi0", "pi05", "llm", "mllm"):
             raise ValueError(
@@ -544,32 +550,26 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             f"Supported: pi05, groot, groot_n17, pi0, pi0fast, motus, "
             f"wan22_ti2v_5b, cosmos3_video, cosmos3_edge, nexn2, "
             f"qwen36_moe")
-    if framework not in ("torch", "jax", "jetson_pi", "houmo_llama"):
+    if framework not in (
+            "torch", "jax", "jetson_pi", "tcim"):
         raise ValueError(
             f"Unknown framework: {framework}. Supported: torch, jax, "
-            "jetson_pi, houmo_llama")
+            "jetson_pi, tcim")
 
-    # Native FlashRT model-runtime provider linked to Houmo's HLIELLama
-    # libllama.  This is a text LLM, so return its generate() frontend rather
-    # than wrapping it in the VLA-only VLAModel surface.
-    if framework == "houmo_llama":
-        from flash_rt.frontends.houmo_llama.llm import LlmHoumoFrontend
-        # ``backend`` predates this provider and defaults to "cpu" for
-        # Jetson-PI.  Treat that untouched API default as Houmo for this
-        # explicitly selected framework; all other unsupported values fail.
-        houmo_backend = "houmo" if backend == "cpu" else backend
-        return LlmHoumoFrontend(
+    # FlashRT-native M50 Qwen path. This frontend invokes TCIM directly and
+    # never imports or loads llama.cpp/HLIELLama.
+    if framework == "tcim":
+        from flash_rt.frontends.m50.qwen import QwenM50Frontend
+        return QwenM50Frontend(
             checkpoint,
-            backend=houmo_backend,
-            n_ctx=n_ctx,
-            n_threads=n_threads,
+            device_id=device_id,
             temp=temp,
             top_k=top_k,
             top_p=top_p,
             seed=seed,
             max_tokens=max_tokens,
-            model_identity=model_identity,
-            lib_path=lib_path)
+            tokenizer_cache_dir=tokenizer_cache_dir,
+            zero_kv_on_reset=zero_kv_on_reset)
 
     # Drives the Jetson-PI provider through frt_model_runtime_v1 via ctypes.
     # No torch/jax or GPU architecture detection is involved. The action chunk

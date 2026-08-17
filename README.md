@@ -4,8 +4,8 @@
 
 # FlashRT
 
-> 后摩 M50/Qwen3.6 HLIELLama 适配的当前进展、构建命令与续作入口见
-> [docs/m50_qwen_hliellama_handoff_zh.md](docs/m50_qwen_hliellama_handoff_zh.md)。
+> 后摩 M50/Qwen 的 FlashRT 原生 TCIM 部署、测试结果与复现方法见
+> [docs/m50_qwen_tcim_native_zh.md](docs/m50_qwen_tcim_native_zh.md)。
 >
 > 完整的跨机器环境、版本和部署复现手册见
 > [docs/m50_reproducible_deployment_zh.md](docs/m50_reproducible_deployment_zh.md)。
@@ -1122,13 +1122,13 @@ examples/
 
 ## Hardware Support
 
-FlashRT ships native NVIDIA CUDA implementations and an M50/XH2 provider for
-Pi0.5. The M50 path uses Dadao HMM executables instead of CUDA kernels and
-requires a bundle compiled for the installed SDK/driver/firmware release.
+FlashRT ships native NVIDIA CUDA implementations and M50/XH2 providers for
+Pi0.5 and Qwen. The M50 paths execute Dadao HMM graphs directly through TCIM
+and require artifacts compiled for the installed SDK/driver/firmware release.
 
 | Hardware | SM | Status | Validated paths / notes |
 |---|---:|---|---|
-| Houmo M50 / XH2 | — | Backend implemented; device validation pending bundle | Pi0.5 batch-1 scheduling through `tcim_lite`; dispatch/resource unit tests pass. A matching six-graph HMM bundle and `embedding.pt` are required. See [M50 deployment](docs/m50_pi05.md). |
+| Houmo M50 / XH2 | — | Qwen3-0.6B validated on device; Pi0.5 requires its artifact bundle | Native FlashRT → `tcim_lite` Qwen prefill/decode runs without `libllama.so`; Pi0.5 uses six HMM graphs. See [Qwen TCIM deployment](docs/m50_qwen_tcim_native_zh.md) and [Pi0.5 deployment](docs/m50_pi05.md). |
 | Jetson AGX Thor | SM110 | Production target | Pi0, Pi0.5, GROOT N1.6, Pi0-FAST, Qwen3.6 Thor path, Lingbot, Cosmos3-Edge AV/Reasoner, and Qwen3-VL BF16 with opt-in W8/W4 decode ([docs](docs/qwen3_vl_thor.md)); CUTLASS FMHA / Thor attention paths; Pi0.5 FP8 and NVFP4 validation live in [examples/thor](examples/thor/README.md#thor-vla-performance). |
 | RTX 5090 | SM120 | Production target | Pi0/Pi0.5/GROOT/Pi0-FAST RTX paths, Qwen3.6, Qwen3-8B, Qwen3-VL, Higgs Audio v3 FP8, Motus, Wan2.2, Cosmos3-Nano, and HF Kernel Hub package validation; see [RTX 5090 latency](examples/blackwell/README.md#vla-latency-rtx-5090). |
 | RTX 4090 | SM89 | Validated / supported target | RTX VLA build path and deployment recipe; Higgs BF16 path compiles/configures. See [deployment_rtx4090.md](docs/deployment_rtx4090.md). |

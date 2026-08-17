@@ -1,0 +1,22 @@
+{
+  "date": "2026-08-17",
+  "device": "Houmo M50/LQ50-24GB",
+  "driver": "V1.4.0",
+  "firmware": "V1.4.0",
+  "model": "Qwen3-0.6B",
+  "framework": "tcim",
+  "execution_path": "FlashRT -> tcim_lite -> TCIM Runtime -> M50",
+  "max_tokens": 32,
+  "repeat": 3,
+  "model_load_ms": 14555.795,
+  "prefill_hmm_ms_median": 26.715,
+  "decode_tokens_per_second_median": 40.485,
+  "token_ids_repeatable": true,
+  "libllama_mapped": false,
+  "tcim_runtime_mapped": true,
+  "short_answer_test": {
+    "prompt": "请只输出数字2，不要输出其他内容。 /no_think",
+    "output": "<think>\n\n</think>\n\n2",
+    "token_ids": [151667, 271, 151668, 271, 17, 151645]
+  }
+}

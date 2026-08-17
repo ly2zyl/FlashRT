@@ -6,5 +6,6 @@ can still be imported on development hosts without the Houmo runtime.
 """
 
 from .pi05 import Pi05M50Frontend
+from .qwen import QwenM50Frontend
 
-__all__ = ["Pi05M50Frontend"]
+__all__ = ["Pi05M50Frontend", "QwenM50Frontend"]
