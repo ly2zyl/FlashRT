@@ -103,6 +103,7 @@ def test_qwen_frontend_rejects_invalid_runtime_options(kwargs, message):
 
 def test_decode_rejects_steps_after_eog():
     frontend = object.__new__(m50_qwen.QwenM50Frontend)
+    frontend._closed = False
     frontend._logits = np.array([0.0, 1.0], dtype=np.float16)
     frontend._generated_ids = []
     frontend._finished = False
@@ -117,6 +118,54 @@ def test_decode_rejects_steps_after_eog():
     assert result == {"token": 1, "is_eog": True, "decode_ms": 0.0}
     with pytest.raises(RuntimeError, match="after generation finished"):
         frontend.decode(return_text=False)
+
+
+def test_decode_returns_prefill_token_before_running_decoder_hmm():
+    class FakeDecode:
+        runs = 0
+
+        def set_input(self, *_args):
+            pass
+
+        def run(self):
+            self.runs += 1
+
+        def sync(self):
+            pass
+
+        def get_output(self, _name):
+            return np.array([[[0.0, 0.0, 2.0]]], dtype=np.float16)
+
+    frontend = object.__new__(m50_qwen.QwenM50Frontend)
+    frontend._closed = False
+    frontend._logits = np.array([[[0.0, 2.0, 0.0]]], dtype=np.float16)
+    frontend._generated_ids = []
+    frontend._finished = False
+    frontend.max_tokens = 4
+    frontend.temp = 0.0
+    frontend.vocab_size = 3
+    frontend._sampling_logits = np.empty(3, dtype=np.float32)
+    frontend.eos_token_ids = {2}
+    frontend.context_length = 8
+    frontend._valid_length = 1
+    frontend._embedding = np.zeros((3, 2), dtype=np.float16)
+    frontend._decode_embedding = np.zeros((1, 1, 2), dtype=np.float16)
+    frontend._decode_valid_length = np.zeros(1, dtype=np.int32)
+    frontend._decode_current_length = np.ones(1, dtype=np.int32)
+    frontend._decode_embedding_name = "input_1"
+    frontend._decode_output_name = "logits"
+    frontend._decode = FakeDecode()
+    frontend.last_decode_ms = 0.0
+
+    first = frontend.decode(return_text=False)
+    assert first == {"token": 1, "is_eog": False, "decode_ms": 0.0}
+    assert frontend._decode.runs == 0
+
+    second = frontend.decode(return_text=False)
+    assert second["token"] == 2
+    assert second["is_eog"] is True
+    assert frontend._decode.runs == 1
+    assert frontend._valid_length == 2
 
 
 def test_close_releases_embedding_memmap():
@@ -142,3 +191,82 @@ def test_close_releases_embedding_memmap():
     assert mmap.closed is True
     assert frontend._embedding is None
     assert frontend._closed is True
+
+
+@pytest.mark.parametrize(
+    ("zero_kv_on_reset", "expected_zero_calls"),
+    [(False, 0), (True, 1)],
+)
+def test_reset_only_physically_clears_kv_when_requested(
+        zero_kv_on_reset, expected_zero_calls):
+    class FakeCache:
+        zero_calls = 0
+
+        def set_zero(self):
+            self.zero_calls += 1
+
+    cache = FakeCache()
+    frontend = object.__new__(m50_qwen.QwenM50Frontend)
+    frontend._closed = False
+    frontend._session_started = True
+    frontend.zero_kv_on_reset = zero_kv_on_reset
+    frontend._cache_tensors = [cache]
+    frontend._logits = np.ones(2, dtype=np.float16)
+    frontend._generated_ids = [1]
+    frontend._valid_length = 1
+    frontend._finished = True
+    frontend.last_decode_ms = 1.0
+
+    frontend.reset()
+
+    assert cache.zero_calls == expected_zero_calls
+    assert frontend._logits is None
+    assert frontend._generated_ids == []
+    assert frontend._valid_length == 0
+    assert frontend._session_started is False
+    assert frontend._finished is False
+    assert frontend.last_decode_ms == 0.0
+
+
+def test_closed_frontend_rejects_runtime_access():
+    frontend = object.__new__(m50_qwen.QwenM50Frontend)
+    frontend._closed = True
+
+    with pytest.raises(RuntimeError, match="is closed"):
+        frontend.decode()
+    with pytest.raises(RuntimeError, match="is closed"):
+        frontend.get_logits()
+
+
+@pytest.mark.parametrize(
+    ("label", "input_names", "cache_names", "expected"),
+    [
+        (
+            "prefill",
+            ("input_1", "valid_length", "current_length", "cache"),
+            ("cache",),
+            "input_1",
+        ),
+    ],
+)
+def test_resolve_graph_inputs_uses_names_not_positions(
+        label, input_names, cache_names, expected):
+    assert m50_qwen.QwenM50Frontend._resolve_graph_inputs(
+        label, input_names, cache_names) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_names", "message"),
+    [
+        (("input_1", "valid_length"), "missing control inputs"),
+        (
+            ("input_1", "input_2", "valid_length", "current_length"),
+            "must expose one embedding input",
+        ),
+    ],
+)
+def test_resolve_graph_inputs_rejects_incompatible_contract(
+        input_names, message):
+    with pytest.raises(RuntimeError, match=message):
+        m50_qwen.QwenM50Frontend._resolve_graph_inputs(
+            "prefill", input_names, ())

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import flash_rt
+import numpy as np
 
 
 def _model_fd_count(model_path: Path) -> int:
@@ -60,13 +61,22 @@ def main() -> None:
         zero_kv_on_reset=True,
     )
     file_descriptors["while_loaded"] = _model_fd_count(model_path)
+    graph_contract = {
+        "prefill_length": model.prefill_length,
+        "context_length": model.context_length,
+        "vocab_size": model.vocab_size,
+        "hidden_size": model.hidden_size,
+        "kv_cache_tensors": len(model._cache_tensors),
+    }
 
     try:
+        model.zero_kv_on_reset = False
         session_runs = [
             _generate(model, "请只输出数字2，不要输出其他内容。 /no_think"),
             _generate(model, "请只输出数字3，不要输出其他内容。 /no_think"),
             _generate(model, "请只输出数字2，不要输出其他内容。 /no_think"),
         ]
+        model.zero_kv_on_reset = True
         reset_runs = [
             _generate(model, "请只输出数字2，不要输出其他内容。 /no_think"),
             _generate(model, "请只输出数字2，不要输出其他内容。 /no_think"),
@@ -78,6 +88,23 @@ def main() -> None:
             eog_guard = "after generation finished" in str(exc)
         else:
             eog_guard = False
+
+        boundary_tokens = np.zeros(model.prefill_length, dtype=np.int64)
+        model.prefill(tokens=boundary_tokens, return_logits=False)
+        boundary_logits = model.get_logits()
+        prefill_boundary_passed = bool(
+            boundary_logits.shape == (1, 1, model.vocab_size)
+            and np.isfinite(boundary_logits).all()
+        )
+        try:
+            model.prefill(
+                tokens=np.zeros(model.prefill_length + 1, dtype=np.int64),
+                return_logits=False,
+            )
+        except ValueError as exc:
+            overlength_guard = "prompt requires" in str(exc)
+        else:
+            overlength_guard = False
     finally:
         model.close()
 
@@ -90,10 +117,15 @@ def main() -> None:
             run["text"].rstrip().endswith(expected)
             for run, expected in zip(session_runs, ("2", "3", "2"))
         ] == [True, True, True],
-        "physical_kv_reset_repeatable": (
+        "logical_reset_test_zero_kv_on_reset": False,
+        "physical_reset_test_zero_kv_on_reset": True,
+        "physical_reset_outputs_repeatable": (
             reset_runs[0]["token_ids"] == reset_runs[1]["token_ids"]
         ),
         "eog_guard_passed": eog_guard,
+        "graph_contract": graph_contract,
+        "prefill_256_token_boundary_passed": prefill_boundary_passed,
+        "prefill_257_token_rejected": overlength_guard,
         "model_file_descriptors": file_descriptors,
         "libllama_mapped": "libllama.so" in maps,
         "tcim_runtime_mapped": "libtcim_runtime_lite.so" in maps,

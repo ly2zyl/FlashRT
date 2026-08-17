@@ -47,8 +47,19 @@
     "<think>\n\n</think>\n\n2"
   ],
   "session_isolation_passed": true,
-  "physical_kv_reset_repeatable": true,
+  "logical_reset_test_zero_kv_on_reset": false,
+  "physical_reset_test_zero_kv_on_reset": true,
+  "physical_reset_outputs_repeatable": true,
   "eog_guard_passed": true,
+  "graph_contract": {
+    "prefill_length": 256,
+    "context_length": 32768,
+    "vocab_size": 151936,
+    "hidden_size": 1024,
+    "kv_cache_tensors": 56
+  },
+  "prefill_256_token_boundary_passed": true,
+  "prefill_257_token_rejected": true,
   "model_file_descriptors": {
     "before_load": 0,
     "while_loaded": 1,

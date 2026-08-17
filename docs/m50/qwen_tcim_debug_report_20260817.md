@@ -3,7 +3,7 @@
 - 调试日期：2026-08-17
 - 调试对象：`flash_rt/frontends/m50/qwen.py`
 - 当前状态：已修复并完成 M50 实机回归
-- 对应提交：`cde645e fix: correct M50 Qwen TCIM runtime state`
+- 所在分支：`codex/m50-qwen-tcim-native`
 
 ## 1. 调试目标
 
@@ -22,8 +22,12 @@ FlashRT 代码缺陷、TCIM Runtime 提示和模型交付件固有限制。本�
 | 4 | EOG 后仍允许继续调用 decode | 分阶段 API 的生命周期状态不完整 | 已修复 |
 | 5 | 运行参数缺少边界校验 | 非法参数可能延迟到模型加载或采样阶段才失败 | 已修复 |
 | 6 | `close()` 未显式释放 embedding memmap | 实例关闭后可能继续占用 GGUF 文件描述符 | 已修复 |
-| 7 | TCIM backend warning 被误认为错误 | 容易造成测试结论误判 | 已确认是 Runtime 提示 |
-| 8 | Decode 仍有图外 host 时间 | 限制当前端到端吞吐 | 现有 HMM 接口限制，非遗留代码错误 |
+| 7 | HMM 输入按序号绑定且缺少图契约校验 | 更换交付件后可能错绑输入或延迟失败 | 已修复 |
+| 8 | 首 token 返回前提前执行下一次 Decode 图 | 调用方首 token 时延增加约一次图执行 | 已修复 |
+| 9 | 性能脚本无预热且指标名称不准确 | 3 次样本不稳定，Prefill 后吞吐被写成端到端吞吐 | 已修复 |
+| 10 | NumPy 布尔值不能写入 JSON | 边界测试完成但结果落盘失败 | 已修复 |
+| 11 | TCIM backend warning 被误认为错误 | 容易造成测试结论误判 | 已确认是 Runtime 提示 |
+| 12 | Decode 仍有图外 host 时间 | 限制当前端到端吞吐 | 现有 HMM 接口限制，非遗留代码错误 |
 
 ## 3. 问题分析与修复
 
@@ -77,8 +81,9 @@ self._decode.set_input(name, cache)
 修复：初始化 `_sampling_logits` FP32 缓冲区，每步使用 `np.copyto()` 更新后执行
 argmax；temperature 采样也复用该缓冲区。缓存修改不会影响 TCIM 输出 Tensor。
 
-验证：32-token 端到端中位吞吐从 38.123 提升到 41.427 token/s；token 序列
-保持一致。
+验证：按当时相同的旧测试口径，32-token Prefill 后生成吞吐从 38.123 提升到
+41.427 token/s，token 序列保持一致。该历史数据仅用于本项优化前后对照；正式
+性能数据采用第 3.9 节修正后的统计口径。
 
 当前状态：已修复。
 
@@ -119,6 +124,64 @@ prefill 清除状态，完成后继续 decode 会被拒绝。
 
 当前状态：已修复。
 
+### 3.7 HMM 输入输出契约
+
+问题现象：Prefill 和 Decode 的 Embedding、`valid_length`、`current_length` 输入
+按索引 0、1、2 绑定，只检查了第一个 KV Cache 的 Context 长度。
+
+根因：当前交付件的输入顺序正好满足代码假设，但输入名称才是稳定的运行时
+契约。若换用输入顺序不同或 Cache 形状不一致的交付件，可能错绑输入。
+
+修复：按名称识别控制输入、Embedding 和 56 个 KV Cache；模型加载时检查
+Prefill/Decode Cache 名称和形状、控制输入 shape、Embedding 宽度以及 logits
+shape。实机读取到的契约为 Prefill 256、Context 32768、Hidden 1024、Vocab
+151936 和 56 个 INT8 KV Cache Tensor。
+
+当前状态：已修复，并增加兼容与拒绝路径单元测试。
+
+### 3.8 首 token 调度
+
+问题现象：旧实现从 Prefill logits 采样首 token 后，先执行基于该 token 的下一次
+Decode 图，再把首 token 返回给调用者。
+
+根因：Decode 图在返回后续 token 所需 logits 之前被提前执行。该顺序不影响完整
+序列和总 Decode step 数，但会让调用方首 token 时延增加约一次 M50 图执行。
+
+修复：首 token 直接从 Prefill logits 采样并返回；从第二次 `decode()` 调用开始，
+先用上一 token 执行 Decode 图，再采样当前 token。
+
+验证：相同“3 次预热、10 次计时”口径下，调用方首 token P50 从 64.898 ms
+降至 41.620 ms，固定 32-token 的 Prefill 后生成吞吐从 40.554 token/s 变为
+40.316 token/s，吞吐差异为测试波动范围内。
+
+当前状态：已修复；随后按正式口径执行 5 次预热和 20 次计时，token 序列保持
+20/20 一致。
+
+### 3.9 性能统计口径
+
+问题现象：旧性能测试没有预热，只保留 3 次样本，并将不包含 Prefill 的吞吐称为
+“端到端输出吞吐”。
+
+修复：增加 `--warmup` 参数和参数边界检查；正式测试采用 5 次预热、20 次计时；
+分别统计 Prefill 阶段、调用方首 token、完整请求、Prefill 后生成吞吐、完整请求
+吞吐、Decode 图吞吐以及图外主机时间，并输出 P50/P95。
+
+进一步检查发现，未固定主机 CPU 时 Decode 图外时间 P50 为 366.297 ms，而
+M50 Decode 图吞吐稳定在 71.289 step/s。将进程固定到 CPU 4–7 后，图外时间
+P50 降至 185.666 ms，M50 图吞吐为 70.948 step/s。正式报告因此记录 CPU
+亲和性，避免把 ARM 主机调度波动误判为 M50 计算性能变化。
+
+当前状态：已修复，报告已使用新口径重测。
+
+### 3.10 边界结果 JSON 序列化
+
+问题现象：256-token 边界测试成功执行，但 `np.isfinite(...).all()` 返回
+`numpy.bool_`，`json.dumps()` 报类型不可序列化。
+
+修复：结果落盘前显式转换为 Python `bool`。
+
+当前状态：已修复，边界测试 JSON 已正常生成。
+
 ## 4. 已核查但不是代码缺陷的项目
 
 ### 4.1 TCIM backend warning
@@ -140,8 +203,8 @@ Empty backend name, use Xh2HalBackend instead.
 ### 4.2 Decode 图外时间
 
 当前 decoder HMM 输出 `[1, 1, 151936]` FP16 完整词表 logits。每个 token 需要
-向 host 回传约 304 KiB，并完成三个输入绑定和 CPU 采样。代码侧临时分配已
-消除，但数据传输和 TCIM API 调用仍然存在。
+向 host 回传 303,872 bytes，约 296.8 KiB，并完成三个输入绑定和 CPU 采样。
+代码侧临时分配已消除，但数据传输和 TCIM API 调用仍然存在。
 
 若需继续明显提速，需要离线编译设备端 sampler/argmax HMM，或由 TCIM 只回传
 候选 token。现有交付件没有该图，因此此项属于模型产物与接口边界。
@@ -152,10 +215,12 @@ Empty backend name, use Xh2HalBackend instead.
 
 | 验证项 | 结果 |
 |---|---|
-| Qwen 专项单元测试 | 10/10 通过 |
+| Qwen 专项单元测试 | 17/17 通过 |
 | M50 短回答重复测试 | 3/3 token 序列一致 |
 | 同实例 2→3→2 状态隔离 | 通过 |
 | 物理 KV Cache 复位 | 通过 |
+| 256-token Prefill 边界 | 通过 |
+| 257-token Prefill 越界保护 | 通过 |
 | EOG 后 decode 保护 | 通过 |
 | GGUF 文件描述符释放 | 0→1→0 |
 | `libllama.so` 映射检查 | 未加载 |
@@ -163,6 +228,7 @@ Empty backend name, use Xh2HalBackend instead.
 
 ## 6. 当前状态
 
-已发现的 FlashRT 功能和资源管理问题均已修复，并完成 M50 实机回归。当前路径
-可用于该 Qwen3-0.6B 交付件的 batch-1 单会话推理。剩余图外耗时需要新的设备端
-采样产物或 TCIM 接口能力，不影响当前正确性结论。
+本轮发现的 FlashRT 功能、调度、测试口径和资源管理问题均已修复，并完成 M50
+实机回归。当前路径可用于该 Qwen3-0.6B 交付件的 batch-1 单会话推理。剩余图外
+耗时需要新的设备端采样产物或 TCIM 接口能力。由于本机没有对应的 BF16/HF
+checkpoint，本轮结论仅覆盖运行时链路正确性，不包含模型数值精度对齐。

@@ -88,6 +88,8 @@ class QwenM50Frontend:
         self._prefill_input_names = tuple(
             self._prefill.get_input_name(i)
             for i in range(self._prefill.get_num_inputs()))
+        if self._prefill.get_num_outputs() != 1:
+            raise RuntimeError("prefill HMM must expose exactly one output")
         self._prefill_output_name = self._prefill.get_output_name(0)
         cache_names = [
             name for name in self._prefill_input_names
@@ -96,6 +98,8 @@ class QwenM50Frontend:
         ]
         if not cache_names:
             raise RuntimeError("prefill HMM exposes no KV-cache inputs")
+        self._prefill_embedding_name = self._resolve_graph_inputs(
+            "prefill", self._prefill_input_names, cache_names)
 
         decode_asset = self._index.require("decoder.hmm")
         decode_option = tcim.runtime.Option(weight_manager)
@@ -106,7 +110,19 @@ class QwenM50Frontend:
         self._decode_input_names = tuple(
             self._decode.get_input_name(i)
             for i in range(self._decode.get_num_inputs()))
+        if self._decode.get_num_outputs() != 1:
+            raise RuntimeError("decoder HMM must expose exactly one output")
         self._decode_output_name = self._decode.get_output_name(0)
+        decode_cache_names = [
+            name for name in self._decode_input_names
+            if "model_layers_" in name
+            and ("kcache_input" in name or "vcache_input" in name)
+        ]
+        if set(decode_cache_names) != set(cache_names):
+            raise RuntimeError(
+                "prefill and decoder HMM expose different KV-cache inputs")
+        self._decode_embedding_name = self._resolve_graph_inputs(
+            "decoder", self._decode_input_names, decode_cache_names)
 
         self._cache_tensors = []
         for name in cache_names:
@@ -117,13 +133,47 @@ class QwenM50Frontend:
             self._decode.set_input(name, cache)
             self._cache_tensors.append(cache)
 
-        prefill_info = self._prefill.get_input_info(
-            self._prefill_input_names[0])
-        self.prefill_length = int(prefill_info.shape[1])
-        if int(prefill_info.shape[2]) != self.hidden_size:
+        prefill_shape = tuple(self._prefill.get_input_info(
+            self._prefill_embedding_name).shape)
+        decode_shape = tuple(self._decode.get_input_info(
+            self._decode_embedding_name).shape)
+        if (len(prefill_shape) != 3 or prefill_shape[0] != 1
+                or len(decode_shape) != 3 or decode_shape[:2] != (1, 1)):
+            raise RuntimeError(
+                "Qwen HMM embedding inputs must have shapes [1, P, H] "
+                "and [1, 1, H]")
+        self.prefill_length = int(prefill_shape[1])
+        if (int(prefill_shape[2]) != self.hidden_size
+                or int(decode_shape[2]) != self.hidden_size):
             raise RuntimeError("embedding width does not match prefill HMM")
-        self.context_length = int(
-            self._prefill.get_input_info(cache_names[0]).shape[2])
+        cache_shapes = {
+            tuple(self._prefill.get_input_info(name).shape)
+            for name in cache_names
+        }
+        if len(cache_shapes) != 1:
+            raise RuntimeError("prefill HMM KV-cache shapes are inconsistent")
+        cache_shape = cache_shapes.pop()
+        if len(cache_shape) != 4 or cache_shape[0] != 1:
+            raise RuntimeError("Qwen HMM KV caches must have shape [1, H, S, D]")
+        for name in decode_cache_names:
+            if tuple(self._decode.get_input_info(name).shape) != cache_shape:
+                raise RuntimeError(
+                    f"decoder HMM KV-cache shape differs for {name!r}")
+        for module, label in (
+                (self._prefill, "prefill"), (self._decode, "decoder")):
+            for control in ("valid_length", "current_length"):
+                if tuple(module.get_input_info(control).shape) != (1,):
+                    raise RuntimeError(
+                        f"{label} HMM input {control!r} must have shape [1]")
+        self.context_length = int(cache_shape[2])
+        for module, output_name, label in (
+                (self._prefill, self._prefill_output_name, "prefill"),
+                (self._decode, self._decode_output_name, "decoder")):
+            output_shape = tuple(module.get_output_info(output_name).shape)
+            if output_shape != (1, 1, self.vocab_size):
+                raise RuntimeError(
+                    f"{label} HMM logits shape {output_shape} does not match "
+                    f"[1, 1, {self.vocab_size}]")
         self._prefill_embeddings = np.zeros(
             (1, self.prefill_length, self.hidden_size), dtype=np.float16)
         self._prefill_valid_length = np.zeros(1, dtype=np.int32)
@@ -147,6 +197,23 @@ class QwenM50Frontend:
         self._closed = False
         self.last_prefill_ms = 0.0
         self.last_decode_ms = 0.0
+
+    @staticmethod
+    def _resolve_graph_inputs(label, input_names, cache_names):
+        controls = {"valid_length", "current_length"}
+        missing = controls.difference(input_names)
+        if missing:
+            raise RuntimeError(
+                f"{label} HMM is missing control inputs: {sorted(missing)}")
+        data_names = [
+            name for name in input_names
+            if name not in controls and name not in cache_names
+        ]
+        if len(data_names) != 1:
+            raise RuntimeError(
+                f"{label} HMM must expose one embedding input, got "
+                f"{data_names}")
+        return data_names[0]
 
     def _prepare_tokenizer(self, cache_dir):
         stat = self.model_path.stat()
@@ -268,11 +335,11 @@ class QwenM50Frontend:
         self._prefill_valid_length[0] = 0
         self._prefill_current_length[0] = input_ids.size
         self._prefill.set_input(
-            self._prefill_input_names[0], self._prefill_embeddings)
+            self._prefill_embedding_name, self._prefill_embeddings)
         self._prefill.set_input(
-            self._prefill_input_names[1], self._prefill_valid_length)
+            "valid_length", self._prefill_valid_length)
         self._prefill.set_input(
-            self._prefill_input_names[2], self._prefill_current_length)
+            "current_length", self._prefill_current_length)
 
         started = time.perf_counter()
         self._prefill.run()
@@ -285,6 +352,8 @@ class QwenM50Frontend:
         return self._logits.copy() if return_logits else None
 
     def decode(self, *, return_text=True):
+        if self._closed:
+            raise RuntimeError("QwenM50Frontend is closed")
         if self._logits is None:
             raise RuntimeError("decode requires a successful prefill")
         if self._finished:
@@ -292,25 +361,21 @@ class QwenM50Frontend:
         if len(self._generated_ids) >= self.max_tokens:
             raise RuntimeError("decode exceeds configured max_tokens")
 
-        token = self._sample(self._logits)
-        is_eog = token in self.eos_token_ids
-        self._generated_ids.append(token)
-        budget_exhausted = len(self._generated_ids) >= self.max_tokens
-        self._finished = is_eog or budget_exhausted
         decode_ms = 0.0
-        if not is_eog and not budget_exhausted:
+        if self._generated_ids:
             if self._valid_length >= self.context_length:
                 raise RuntimeError("decode exceeds the HMM context length")
-            self._decode_embedding[0, 0] = self._embedding[token]
+            previous_token = self._generated_ids[-1]
+            self._decode_embedding[0, 0] = self._embedding[previous_token]
             self._decode_valid_length[0] = self._valid_length
             self._decode.set_input(
-                self._decode_input_names[0], self._decode_embedding)
+                self._decode_embedding_name, self._decode_embedding)
             self._decode.set_input(
-                self._decode_input_names[1],
+                "valid_length",
                 self._decode_valid_length,
             )
             self._decode.set_input(
-                self._decode_input_names[2],
+                "current_length",
                 self._decode_current_length,
             )
             started = time.perf_counter()
@@ -322,12 +387,20 @@ class QwenM50Frontend:
                 self._decode.get_output(self._decode_output_name))
             self._valid_length += 1
 
+        token = self._sample(self._logits)
+        is_eog = token in self.eos_token_ids
+        self._generated_ids.append(token)
+        budget_exhausted = len(self._generated_ids) >= self.max_tokens
+        self._finished = is_eog or budget_exhausted
+
         result = {"token": token, "is_eog": is_eog, "decode_ms": decode_ms}
         if return_text:
             result["text"] = self.get_text()
         return result
 
     def get_logits(self):
+        if self._closed:
+            raise RuntimeError("QwenM50Frontend is closed")
         if self._logits is None:
             raise RuntimeError("logits are not ready")
         return self._logits.copy()
@@ -357,7 +430,12 @@ class QwenM50Frontend:
         self._embedding = None
         self._sampling_logits = None
         self._prefill_embeddings = None
+        self._prefill_valid_length = None
+        self._prefill_current_length = None
         self._decode_embedding = None
+        self._decode_valid_length = None
+        self._decode_current_length = None
+        self._logits = None
         self._closed = True
 
     def __enter__(self):

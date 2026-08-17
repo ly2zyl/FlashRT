@@ -11,6 +11,7 @@ result_json=${RESULT_JSON:-"${repo_dir}/.cache/m50/results/qwen_tcim.json"}
 prompt=${PROMPT:-请只回答一个数字：一加一等于多少？}
 max_tokens=${MAX_TOKENS:-32}
 repeat=${REPEAT:-3}
+warmup=${WARMUP:-0}
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
     echo "Python environment not found: ${venv_dir}" >&2
@@ -34,6 +35,7 @@ args=(
     --prompt "${prompt}"
     --max-tokens "${max_tokens}"
     --repeat "${repeat}"
+    --warmup "${warmup}"
     --output-json "${result_json}"
 )
 if [[ "${ZERO_KV_ON_RESET:-0}" == 1 ]]; then
