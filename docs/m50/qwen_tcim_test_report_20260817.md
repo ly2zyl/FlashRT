@@ -10,24 +10,28 @@
 使用 `hm_smi -a -vvv` 检查设备状态，M50 均工作在 performance 模式，IPU 与
 Core 频率均为 1300 MHz。
 
-| 项目 | 测试配置 |
-|---|---|
-| 主机架构 | aarch64，8 核 ARM Cortex-A55/Cortex-A76 |
-| 主机内存 | 15.6 GiB，无 Swap |
-| 操作系统 | Ubuntu 22.04.5 LTS |
-| Linux 内核 | 5.10.226 |
-| 加速卡 | Houmo LQ50-24GB，device 0，2 个计算核 |
-| M50 板载内存 | 24,448 MB |
-| M50 工作频率 | IPU 1300 MHz，Core 1300 MHz |
-| 频率策略 | `performance`，PLL 锁定 1300 MHz |
-| 可用计算核 | `0x11`，Core 0 和 Core 1 均可用 |
-| 主机接口 | 8.0 GT/s × 2 lane |
-| 后摩软件版本 | HMSW V1.4.0，Driver V1.4.0，Firmware V1.4.0 |
+
+| 项目       | 测试配置                                      |
+| -------- | ----------------------------------------- |
+| 主机架构     | aarch64，8 核 ARM Cortex-A55/Cortex-A76     |
+| 主机内存     | 15.6 GiB，无 Swap                           |
+| 操作系统     | Ubuntu 22.04.5 LTS                        |
+| Linux 内核 | 5.10.226                                  |
+| 加速卡      | Houmo LQ50-24GB，device 0，2 个计算核           |
+| M50 板载内存 | 24,448 MB                                 |
+| M50 工作频率 | IPU 1300 MHz，Core 1300 MHz                |
+| 频率策略     | `performance`，PLL 锁定 1300 MHz             |
+| 可用计算核    | `0x11`，Core 0 和 Core 1 均可用                |
+| 主机接口     | 8.0 GT/s × 2 lane                         |
+| 后摩软件版本   | HMSW V1.4.0，Driver V1.4.0，Firmware V1.4.0 |
+
 
 频率是本报告性能数据的测试条件。不同 DVFS 模式、IPU 频率或可用核数量下的
 数据不能直接与本报告比较。
 
 ## 2. 环境搭建
+
+
 
 ### 2.1 虚拟环境创建
 
@@ -51,18 +55,20 @@ python -m pip install -e /home/sky/icode/FlashRT
 
 ### 2.2 软件和依赖版本
 
-| 组件 | 版本或路径 |
-|---|---|
-| Python | 3.12.13 |
-| FlashRT | 当前分支 `codex/m50-qwen-tcim-native`，editable install |
-| `houmo_tcim_runtime_xh2` | 1.4.0 |
-| TCIM Runtime | V1.4.0，`/opt/houmo-tcim-runtime-1.4.0` |
-| HMatC | 1.4.0.dev0 |
-| NumPy | 2.2.6 |
-| Transformers | 4.57.6 |
-| PyTorch / TorchVision | 2.13.0 / 0.28.0 |
-| Pytest | 9.1.1 |
-| HAL 动态库 | `/usr/local/houmo-sdk/hal/lib` |
+
+| 组件                       | 版本或路径                                              |
+| ------------------------ | -------------------------------------------------- |
+| Python                   | 3.12.13                                            |
+| FlashRT                  | 当前分支 `codex/m50-qwen-tcim-native`，editable install |
+| `houmo_tcim_runtime_xh2` | 1.4.0                                              |
+| TCIM Runtime             | V1.4.0，`/opt/houmo-tcim-runtime-1.4.0`             |
+| HMatC                    | 1.4.0.dev0                                         |
+| NumPy                    | 2.2.6                                              |
+| Transformers             | 4.57.6                                             |
+| PyTorch / TorchVision    | 2.13.0 / 0.28.0                                    |
+| Pytest                   | 9.1.1                                              |
+| HAL 动态库                  | `/usr/local/houmo-sdk/hal/lib`                     |
+
 
 执行 M50 测试前设置运行时环境：
 
@@ -75,24 +81,30 @@ export TCIM_BACKEND=Xh2HalBackend
 export LD_LIBRARY_PATH=/opt/houmo-tcim-runtime-1.4.0/lib:/usr/local/houmo-sdk/hal/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 ```
 
+
+
 ## 3. 测试方法和测试对象
+
+
 
 ### 3.1 测试对象
 
 本次测试对象为已经针对 XH2 编译的 Qwen3-0.6B 部署交付件。模型文件只读
 使用，测试代码和结果均保存在 `/home/sky/icode/FlashRT` 中。
 
-| 项目 | 模型信息 |
-|---|---|
-| 模型文件 | `/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf` |
-| 文件大小 | 1,006,385,824 bytes |
-| SHA-256 | `1fb11253f607e6209e77ae32a8b01318142afcccacd4f61c65f6145076b7dd2a` |
-| 容器信息 | GGUF V3，Qwen3-0.6B，XH2 HMM V1.2.0 |
-| 编译规格 | batch 1，1 张卡，2 个计算核，Prefill 256，Context 32768 |
-| Embedding | 151,936 × 1,024，FP16，311,164,944 bytes |
-| Prefill 计算图 | `prefill.hmm`，656,047,800 bytes |
-| Decode 计算图 | `decoder.hmm`，17,357,072 bytes |
-| KV Cache | 28 层 K/V，共 56 个 INT8 Cache Tensor |
+
+| 项目          | 模型信息                                                                            |
+| ----------- | ------------------------------------------------------------------------------- |
+| 模型文件        | `/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf` |
+| 文件大小        | 1,006,385,824 bytes                                                             |
+| SHA-256     | `1fb11253f607e6209e77ae32a8b01318142afcccacd4f61c65f6145076b7dd2a`              |
+| 容器信息        | GGUF V3，Qwen3-0.6B，XH2 HMM V1.2.0                                               |
+| 编译规格        | batch 1，1 张卡，2 个计算核，Prefill 256，Context 32768                                   |
+| Embedding   | 151,936 × 1,024，FP16，311,164,944 bytes                                          |
+| Prefill 计算图 | `prefill.hmm`，656,047,800 bytes                                                 |
+| Decode 计算图  | `decoder.hmm`，17,357,072 bytes                                                  |
+| KV Cache    | 28 层 K/V，共 56 个 INT8 Cache Tensor                                               |
+
 
 执行链路如下：
 
@@ -121,6 +133,8 @@ Qwen GGUF
 5. 检查加载前、加载中和关闭后的 GGUF 文件描述符；
 6. 检查 `/proc/self/maps`，确认加载 TCIM Runtime 且未加载 llama.cpp/HLIELLama。
 
+
+
 ### 3.3 性能测试方法
 
 性能测试加载一次模型，使用固定 28-token 提示词、greedy sampling 和固定
@@ -146,6 +160,8 @@ Qwen3-0.6B 原始 BF16 checkpoint 或 golden logits，因此尚未完成 HF 数�
 不等同于量化模型精度评估。HLIELLama 未作为被测后端或参考后端运行。
 
 ## 4. 正确性测试命令和结果
+
+
 
 ### 4.1 单元测试
 
@@ -182,17 +198,19 @@ python examples/m50/qwen_tcim_runtime_check.py \
 相同请求，随后检查 EOG、256/257-token 边界、动态库映射和模型文件描述符，最后
 调用 `close()`。
 
-| 检查项 | 实测结果 | 判定 |
-|---|---|---|
-| HMM 输入输出契约 | Prefill 256，Context 32768，Vocab 151936，Hidden 1024，KV Cache 56 个 | 通过 |
-| 默认逻辑复位会话隔离 | 同一实例依次输出 2、3、2 | 通过 |
-| 物理 KV Cache 复位 | 两次 token 序列一致；单元测试确认调用 `set_zero()` | 通过 |
-| Prefill 输入上限 | 256 token 正常输出有限 logits | 通过 |
-| Prefill 越界保护 | 257 token 被拒绝 | 通过 |
-| EOG 状态保护 | EOG 后继续 Decode 被拒绝 | 通过 |
-| 动态库映射 | TCIM Runtime 已加载，`libllama.so` 未加载 | 通过 |
-| GGUF 文件描述符 | 加载前 0、加载中 1、关闭后 0 | 通过 |
-| 测试后设备状态 | device 0 正常，频率 1300 MHz | 通过 |
+
+| 检查项            | 实测结果                                                             | 判定  |
+| -------------- | ---------------------------------------------------------------- | --- |
+| HMM 输入输出契约     | Prefill 256，Context 32768，Vocab 151936，Hidden 1024，KV Cache 56 个 | 通过  |
+| 默认逻辑复位会话隔离     | 同一实例依次输出 2、3、2                                                   | 通过  |
+| 物理 KV Cache 复位 | 两次 token 序列一致；单元测试确认调用 `set_zero()`                              | 通过  |
+| Prefill 输入上限   | 256 token 正常输出有限 logits                                          | 通过  |
+| Prefill 越界保护   | 257 token 被拒绝                                                    | 通过  |
+| EOG 状态保护       | EOG 后继续 Decode 被拒绝                                               | 通过  |
+| 动态库映射          | TCIM Runtime 已加载，`libllama.so` 未加载                               | 通过  |
+| GGUF 文件描述符     | 加载前 0、加载中 1、关闭后 0                                                | 通过  |
+| 测试后设备状态        | device 0 正常，频率 1300 MHz                                          | 通过  |
+
 
 2→3→2 三次会话的实际 token 序列分别为：
 
@@ -201,6 +219,8 @@ python examples/m50/qwen_tcim_runtime_check.py \
 3：[151667, 271, 151668, 271, 18, 151645]
 2：[151667, 271, 151668, 271, 17, 151645]
 ```
+
+
 
 ## 5. 性能测试命令和结果
 
@@ -224,17 +244,19 @@ taskset -c 4-7 python examples/m50/qwen_tcim.py \
 测试条件：M50 1300 MHz、2 核、batch 1、greedy sampling、28-token 输入、
 32-token 固定输出、主机 CPU 亲和性 4–7、5 次预热、20 次计时。
 
-| 性能指标 | P50 | P95或说明 |
-|---|---:|---:|
-| 模型加载时间 | 14.237 s | 单次加载，不计算分位数 |
-| Prefill 阶段墙钟时延 | 33.799 ms | 34.408 ms |
-| Prefill 计算图时延 | 26.343 ms | 26.616 ms |
-| 调用方可见首 token 时延 | 36.306 ms | 37.049 ms |
-| 32-token 完整请求时延 | 656.131 ms | 680.360 ms |
-| Prefill 后生成吞吐 | 51.463 token/s | 20 次样本中位数 |
-| 完整请求输出吞吐 | 48.771 token/s | 包含 Prefill |
-| Decode 计算图吞吐 | 70.948 step/s | 每次请求 31 step |
-| Decode 图外主机时间 | 185.666 ms | 201.268 ms |
+
+| 性能指标            | P50            | P95或说明       |
+| --------------- | -------------- | ------------ |
+| 模型加载时间          | 14.237 s       | 单次加载，不计算分位数  |
+| Prefill 阶段墙钟时延  | 33.799 ms      | 34.408 ms    |
+| Prefill 计算图时延   | 26.343 ms      | 26.616 ms    |
+| 调用方可见首 token 时延 | 36.306 ms      | 37.049 ms    |
+| 32-token 完整请求时延 | 656.131 ms     | 680.360 ms   |
+| Prefill 后生成吞吐   | 51.463 token/s | 20 次样本中位数    |
+| 完整请求输出吞吐        | 48.771 token/s | 包含 Prefill   |
+| Decode 计算图吞吐    | 70.948 step/s  | 每次请求 31 step |
+| Decode 图外主机时间   | 185.666 ms     | 201.268 ms   |
+
 
 在相同 5 次预热、20 次计时但未设置 CPU 亲和性的对照中，Decode 图吞吐为
 71.289 step/s，图外主机时间 P50 为 366.297 ms。固定 CPU 4–7 后，M50 图吞吐
@@ -254,9 +276,11 @@ taskset -c 4-7 python examples/m50/qwen_tcim.py \
 本次设置达到 32-token 上限时尚未生成 EOG，因此文本在“相”处截断，这是固定
 长度性能测试的预期行为。原始逐次数据保存在：
 
-- [`results/qwen3_0.6b_tcim_20260817.json`](results/qwen3_0.6b_tcim_20260817.json)
-- [`results/qwen3_0.6b_tcim_runtime_check_20260817.json`](results/qwen3_0.6b_tcim_runtime_check_20260817.json)
-- [`results/qwen3_0.6b_tcim_throughput_20260817.json`](results/qwen3_0.6b_tcim_throughput_20260817.json)
+- `[results/qwen3_0.6b_tcim_20260817.json](results/qwen3_0.6b_tcim_20260817.json)`
+- `[results/qwen3_0.6b_tcim_runtime_check_20260817.json](results/qwen3_0.6b_tcim_runtime_check_20260817.json)`
+- `[results/qwen3_0.6b_tcim_throughput_20260817.json](results/qwen3_0.6b_tcim_throughput_20260817.json)`
+
+
 
 ## 6. 测试结论和未覆盖项
 
@@ -274,4 +298,4 @@ taskset -c 4-7 python examples/m50/qwen_tcim.py \
 - 其他 Qwen 型号或不同 HMM 编译规格的兼容性。
 
 调试过程及已修复问题见
-[`qwen_tcim_debug_report_20260817.md`](qwen_tcim_debug_report_20260817.md)。
+`[qwen_tcim_debug_report_20260817.md](qwen_tcim_debug_report_20260817.md)`。
