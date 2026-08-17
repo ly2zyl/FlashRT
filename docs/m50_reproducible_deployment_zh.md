@@ -1,6 +1,6 @@
 # M50 + FlashRT 可复现环境与部署手册
 
-最后核对：2026-08-13。硬件为后摩 M50/LQ50 M.2、XH2、aarch64。
+最后核对：2026-08-17。硬件为后摩 M50/LQ50 M.2、XH2、aarch64。
 
 ## 1. 隔离目录
 
@@ -66,10 +66,17 @@ hm_smi
 
 ```bash
 cd /home/sky/icode
-python3.12 -m venv --system-site-packages .venv-m50-runtime
+/home/sky/miniforge3/envs/yolo11m-hm/bin/python \
+  -m venv --system-site-packages .venv-m50-runtime
 source .venv-m50-runtime/bin/activate
 python -m pip install --upgrade pip
 ```
+
+本机 venv 的 `base_prefix` 为只读复用的
+`/home/sky/miniforge3/envs/yolo11m-hm`。`pip` 的写入目标是
+`/home/sky/icode/.venv-m50-runtime/lib/python3.12/site-packages`，未修改基础 Conda
+环境。另一台机器复现时，应准备同版本 Python 3.12 和下列依赖；基础环境名称
+不要求相同。
 
 实际包版本：
 
@@ -86,6 +93,8 @@ modelscope==1.39.1
 modelscope-hub==0.2.0
 hmatc==1.4.0.dev0
 houmo_tcim_runtime_xh2==1.4.0
+pytest==9.1.1
+cmake==3.31.10
 ```
 
 查询：
@@ -95,8 +104,9 @@ houmo_tcim_runtime_xh2==1.4.0
 /home/sky/icode/.venv-m50-runtime/bin/python -m pip freeze
 ```
 
-该环境使用 `--system-site-packages` 复用了基础环境中的 PyTorch。跨机器时应
-先准备同版本 Python/PyTorch；不要把此 venv 当作通用二进制安装包。
+该环境使用 `--system-site-packages` 复用了基础环境中的 PyTorch、HMatC 和
+TCIM Python 包。跨机器时应先准备相同架构和版本的依赖；不要把此 venv 当作
+可直接复制的通用二进制安装包。
 
 ## 4. 后摩环境变量
 
@@ -130,8 +140,9 @@ HOUMO_EXAMPLES_PATH=/home/sky/icode/houmo-examples-xh2_v1.4.0/houmo-examples-xh2
 ```text
 源码：/home/sky/icode/FlashRT
 分支：codex/m50-qwen-hliellama-handoff
-提交：7411d6008183f9e1127d620da8ad041c03a99542
 ```
+
+使用 `git rev-parse HEAD` 记录实际复现实验所用提交。
 
 构建：
 
@@ -181,10 +192,10 @@ context_length=262144
 HLIELLama 版本：
 
 ```text
-llama.cpp=2.1.0
+llama.cpp=2.1.1
 description=lanyue2.1.0
 tcim_version=1.3.0
-last_update=20260610
+last_update=20260704
 ```
 
 `convert_hm_to_gguf.py`、`readhmm`、`hmmstrip` 是封装/辅助工具，不是
@@ -206,24 +217,21 @@ export LLAMA_LOG_VERBOSITY=1
 
 ## 8. FlashRT 测试命令
 
-示例为 `/home/sky/icode/FlashRT/examples/m50/qwen36_hliellama.py`：
+示例为 `/home/sky/icode/FlashRT/examples/m50/qwen_hliellama.py`，推荐通过环境
+封装脚本运行：
 
 ```bash
 cd /home/sky/icode/FlashRT
-export PYTHONPATH=/home/sky/icode/FlashRT
-export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/home/sky/icode/FlashRT/build/houmo-llama:/home/sky/icode/FlashRT/build/houmo-llama/runtime:/home/sky/houmo-HLIELLama-xh2/lib:/opt/houmo-tcim-runtime-1.4.0/lib
-export LLAMA_LOG_VERBOSITY=1
-/home/sky/icode/.venv-m50-runtime/bin/python \
-  examples/m50/qwen36_hliellama.py \
-  --model /home/sky/houmo-HLIELLama-xh2/models/qwen3.6_35b-a3b_w4a8_262144_1_1/HiModel_xh2_qwen3.6-35b-a3b_w4a8_256_256k_b1_1chip_2cores_v1.4.0_20260716.gguf \
-  --provider-lib /home/sky/icode/FlashRT/build/houmo-llama/libflashrt_cpp_llama_cpp_provider_c.so \
-  --ctx-size 512 --max-tokens 8 \
-  --prompt '请只回答一个数字：一加一等于多少？'
+export MODEL_GGUF=/home/sky/houmo-HLIELLama-xh2/models/qwen3.6_35b-a3b_w4a8_262144_1_1/HiModel_xh2_qwen3.6-35b-a3b_w4a8_256_256k_b1_1chip_2cores_v1.4.0_20260716.gguf
+export MODEL_SHA256_FILE=/home/sky/icode/FlashRT/artifacts/m50_qwen/cache/qwen3.6_35b_a3b.sha256
+export MODE=staged
+export MAX_TOKENS=8
+examples/m50/run_qwen_hliellama.sh
 ```
 
-当前记录：FlashRT provider 已完成 DSO 构建、HAL 初始化、GGUF 元数据读取并
-开始向 M50 加载权重；按用户要求在最终生成前停止。因此后摩基线已确认，
-FlashRT 最终文本输出需要后续继续等待模型加载后验证。
+FlashRT 已完成 0.6B 和 35B-A3B 两个 Qwen 模型的 M50 实机推理。35B-A3B
+完整结束测试的 prefill 为 276.346 ms，decode 为 20.713 token/s；详细实现、
+结果和 SHA-256 使用要求见 `docs/m50_qwen_hliellama_handoff_zh.md`。
 
 ## 9. 换机器复现检查表
 
@@ -245,7 +253,8 @@ FlashRT/build/houmo-llama/libflashrt_cpp_llama_cpp_provider_c.so
 ```
 
 先执行第 7 节基线，再执行第 8 节 FlashRT。首次加载 21 GB 模型可能需要数
-分钟，不要同时启动第二个大模型进程。
+分钟，不要同时启动第二个大模型进程。模型摘要只应在首次校验成功且模型保持
+只读时作为预校验标识复用。
 
 ## 10. Pi0.5 清理和限制
 

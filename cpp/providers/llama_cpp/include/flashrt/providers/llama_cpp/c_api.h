@@ -219,8 +219,9 @@ int frt_llama_cpp_llm_runtime_create_with_engine(
  * fields:
  *   model_family="llm", model_path, backend,
  *   n_ctx, n_threads, temp, top_k, top_p, seed, max_tokens.
- * No field has a default; missing or mismatched fields fail hard. The factory
- * must provide create_llm. */
+ * Optional model_identity is a pre-verified lowercase SHA-256 digest. When it
+ * is absent the provider hashes model_path before opening the model. The
+ * factory must provide create_llm. */
 int frt_llama_cpp_llm_runtime_open_with_engine_factory(
     const char* config_json,
     const frt_llama_cpp_engine_factory_v1* factory,

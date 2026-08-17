@@ -9,6 +9,7 @@
 #include "checkpoint_identity.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -297,6 +298,7 @@ extern "C" int frt_llama_cpp_llm_runtime_open_with_engine_factory(
     bool seen_top_p = false;
     bool seen_seed = false;
     bool seen_max_tokens = false;
+    bool seen_model_identity = false;
     const char* p = config_json;
     auto skip_ws = [&p]() {
         while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') ++p;
@@ -476,6 +478,9 @@ extern "C" int frt_llama_cpp_llm_runtime_open_with_engine_factory(
         } else if (key == "max_tokens") {
             if (seen_max_tokens || !parse_u32(&config.max_tokens)) return -1;
             seen_max_tokens = true;
+        } else if (key == "model_identity") {
+            if (seen_model_identity || !parse_string(&model_identity)) return -1;
+            seen_model_identity = true;
         } else {
             return -1;
         }
@@ -497,11 +502,24 @@ extern "C" int frt_llama_cpp_llm_runtime_open_with_engine_factory(
     }
     config.model_path = model_path.c_str();
     config.backend = backend.c_str();
-    std::string identity_error;
-    if (!flashrt::providers::llama_cpp::checkpoint_identity(
-            config.model_path, &model_identity, &identity_error)) {
-        flashrt::providers::llama_cpp::set_runtime_open_error(identity_error);
-        return -1;
+    if (seen_model_identity) {
+        if (model_identity.size() != 64 ||
+            !std::all_of(model_identity.begin(), model_identity.end(),
+                         [](unsigned char ch) {
+                             return std::isdigit(ch) ||
+                                    (ch >= 'a' && ch <= 'f');
+                         })) {
+            flashrt::providers::llama_cpp::set_runtime_open_error(
+                "model_identity must be a 64-character lowercase SHA-256");
+            return -1;
+        }
+    } else {
+        std::string identity_error;
+        if (!flashrt::providers::llama_cpp::checkpoint_identity(
+                config.model_path, &model_identity, &identity_error)) {
+            flashrt::providers::llama_cpp::set_runtime_open_error(identity_error);
+            return -1;
+        }
     }
     config.model_identity = model_identity.c_str();
 

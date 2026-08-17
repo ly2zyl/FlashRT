@@ -325,6 +325,7 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
                action_steps=None,
                action_dim=None,
                lib_path=None,
+               model_identity=None,
                n_ctx=0,
                n_threads=0,
                temp=0.8,
@@ -341,6 +342,7 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
         checkpoint: path to checkpoint directory.
             - torch: safetensors directory
             - jax: Orbax checkpoint directory
+            - houmo_llama: GGUF model file
         framework: "torch" or "jax"
         num_views: number of camera views (default 2)
         autotune: CUDA Graph autotune intensity.
@@ -361,6 +363,9 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             runner: drive it with set_prompt(sample=... or input_json=...) +
             infer(output_dir=..., vae_path=...).
         device: ignored (auto-detects GPU). Reserved for future multi-GPU.
+        model_identity: optional pre-verified lowercase SHA-256 for a GGUF
+            model. This avoids hashing a large immutable model at every load.
+            If omitted, the provider computes the identity from the file.
         decode_cuda_graph: Pi0-FAST only. Capture action-phase decode as CUDA
             Graph for max throughput (trades startup time for per-token speed).
         decode_graph_steps: Pi0-FAST only. Number of action tokens to capture
@@ -563,6 +568,7 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
             top_p=top_p,
             seed=seed,
             max_tokens=max_tokens,
+            model_identity=model_identity,
             lib_path=lib_path)
 
     # Drives the Jetson-PI provider through frt_model_runtime_v1 via ctypes.
@@ -581,6 +587,7 @@ def load_model(checkpoint, framework="torch", num_views=2, autotune=3,
                 top_p=top_p,
                 seed=seed,
                 max_tokens=max_tokens,
+                model_identity=model_identity,
                 lib_path=lib_path)
         if config == "mllm":
             from flash_rt.frontends.jetson_pi.mllm import MllmJetsonPiFrontend

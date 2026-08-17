@@ -1,0 +1,53 @@
+{
+  "date": "2026-08-17",
+  "device": "Houmo M50/LQ50-24GB",
+  "driver": "V1.4.0",
+  "firmware": "V1.4.0",
+  "results": [
+    {
+      "model": "Qwen3-0.6B",
+      "mode": "one_shot_and_staged",
+      "max_tokens": 32,
+      "repeat": 3,
+      "model_load_ms": 12273.556,
+      "one_shot_latency_ms_median": 808.444,
+      "staged_prefill_ms_median": 38.431,
+      "staged_decode_ms_median": 854.518,
+      "staged_decode_tokens_per_second_median": 37.448,
+      "token_ids_repeatable": true,
+      "one_shot_staged_text_match_all": true
+    },
+    {
+      "model": "Qwen3-0.6B",
+      "mode": "staged_preverified_identity",
+      "max_tokens": 8,
+      "model_load_ms": 6804.246,
+      "staged_prefill_ms": 36.674,
+      "decode_tokens": 6,
+      "eog": true,
+      "output": "<think>\n\n</think>\n\n2"
+    },
+    {
+      "model": "Qwen3.6-35B-A3B",
+      "mode": "staged",
+      "max_tokens": 8,
+      "model_load_ms": 299255.136,
+      "staged_prefill_ms": 276.346,
+      "decode_tokens": 6,
+      "staged_decode_tokens_per_second": 20.713,
+      "eog": true,
+      "output": "<think>\n\n</think>\n\n2"
+    },
+    {
+      "model": "Qwen3.6-35B-A3B",
+      "mode": "staged_preverified_identity_startup_probe",
+      "max_tokens": 8,
+      "model_load_ms": 124043.563,
+      "staged_prefill_ms": 281.563,
+      "decode_tokens": 8,
+      "staged_decode_tokens_per_second": 16.666,
+      "eog": false,
+      "note": "Short startup probe; use the completed 6-token run for decode throughput comparison."
+    }
+  ]
+}

@@ -28,13 +28,24 @@ namespace {
 struct Engine {
     llama_model* model = nullptr;
     llama_context* context = nullptr;
+    llama_context_params context_params{};
     llama_sampler* sampler = nullptr;
     const llama_vocab* vocab = nullptr;
 
     std::string prompt;
+    std::vector<llama_token> input_tokens;
     std::string output;
     std::string last_error;
     uint32_t max_tokens = 0;
+    uint32_t generated_tokens = 0;
+    llama_token next_token = 0;
+    int32_t is_eog = 0;
+    bool input_ready = false;
+    bool tokens_input = false;
+    bool prefilled = false;
+    bool next_token_ready = false;
+    bool logits_ready = false;
+    bool context_pristine = true;
     std::atomic<long> refs{1};
 };
 
@@ -130,9 +141,18 @@ int set_input(void* self, uint32_t port, const void* data, uint64_t bytes,
     auto* engine = static_cast<Engine*>(self);
     if (!engine) return -1;
     engine->last_error.clear();
+    engine->input_ready = false;
+    engine->tokens_input = false;
+    engine->prefilled = false;
+    engine->next_token_ready = false;
+    engine->logits_ready = false;
+    engine->generated_tokens = 0;
+    engine->prompt.clear();
+    engine->input_tokens.clear();
     engine->output.clear();
-    if (port != FRT_LLAMA_CPP_LLM_PORT_PROMPT) {
-        set_error(engine, "Houmo Llama engine accepts only the prompt port");
+    if (port != FRT_LLAMA_CPP_LLM_PORT_PROMPT &&
+        port != FRT_LLAMA_CPP_LLM_PORT_TOKENS) {
+        set_error(engine, "Houmo Llama engine accepts prompt or token input");
         return -2;
     }
     if (!data || bytes == 0 ||
@@ -140,27 +160,68 @@ int set_input(void* self, uint32_t port, const void* data, uint64_t bytes,
         set_error(engine, "prompt must be a non-empty byte string");
         return -1;
     }
-    engine->prompt.assign(static_cast<const char*>(data),
-                          static_cast<size_t>(bytes));
+    if (port == FRT_LLAMA_CPP_LLM_PORT_PROMPT) {
+        engine->prompt.assign(static_cast<const char*>(data),
+                              static_cast<size_t>(bytes));
+    } else {
+        if (bytes % sizeof(int32_t) != 0) {
+            set_error(engine, "tokens payload must be a non-empty int32 array");
+            return -1;
+        }
+        const auto* begin = static_cast<const int32_t*>(data);
+        engine->input_tokens.assign(begin, begin + bytes / sizeof(int32_t));
+        engine->tokens_input = true;
+    }
+    engine->input_ready = true;
     return 0;
 }
 
-int run_infer(void* self) {
-    auto* engine = static_cast<Engine*>(self);
-    if (!engine) return -1;
-    engine->last_error.clear();
+int reset_session(Engine* engine) {
+    // Houmo's HMM backend keeps an internal KV offset that is not reset by
+    // llama_memory_clear()/llama_memory_seq_rm(). Recreate only the context
+    // to guarantee session isolation while keeping model weights resident.
+    if (!engine->context_pristine) {
+        llama_free(engine->context);
+        engine->context =
+            llama_init_from_model(engine->model, engine->context_params);
+        if (!engine->context) {
+            set_error(engine, "failed to recreate Houmo Llama context");
+            return -8;
+        }
+    }
+    engine->context_pristine = true;
+    llama_sampler_reset(engine->sampler);
     engine->output.clear();
-    if (engine->prompt.empty()) {
-        set_error(engine, "set a prompt before inference");
+    engine->generated_tokens = 0;
+    engine->prefilled = false;
+    engine->next_token_ready = false;
+    engine->logits_ready = false;
+    return 0;
+}
+
+bool prepare_tokens(Engine* engine, std::vector<llama_token>* tokens) {
+    if (engine->tokens_input) {
+        *tokens = engine->input_tokens;
+        return !tokens->empty();
+    }
+    const std::string formatted = format_user_prompt(engine, engine->prompt);
+    return tokenize(engine, formatted, tokens);
+}
+
+int run_prefill(Engine* engine) {
+    if (!engine->input_ready) {
+        set_error(engine, "prefill requires prompt or token input");
         return -1;
     }
 
-    llama_memory_clear(llama_get_memory(engine->context), true);
-    llama_sampler_reset(engine->sampler);
-
+    if (reset_session(engine) != 0) return -8;
     std::vector<llama_token> tokens;
-    const std::string formatted = format_user_prompt(engine, engine->prompt);
-    if (!tokenize(engine, formatted, &tokens)) return -2;
+    if (!prepare_tokens(engine, &tokens)) {
+        if (engine->last_error.empty()) {
+            set_error(engine, "token input must be non-empty");
+        }
+        return -2;
+    }
     if (tokens.size() >= llama_n_ctx(engine->context)) {
         set_error(engine, "tokenized prompt exceeds the configured context");
         return -2;
@@ -174,31 +235,136 @@ int run_infer(void* self) {
                           std::to_string(rc) + ")");
         return -8;
     }
-
-    for (uint32_t i = 0; i < engine->max_tokens; ++i) {
-        const llama_token token =
-            llama_sampler_sample(engine->sampler, engine->context, -1);
-        if (llama_vocab_is_eog(engine->vocab, token)) break;
-        if (!append_piece(engine, token)) return -8;
-
-        llama_token next = token;
-        batch = llama_batch_get_one(&next, 1);
-        rc = llama_decode(engine->context, batch);
-        if (rc != 0) {
-            set_error(engine, "llama_decode failed during generation (rc=" +
-                              std::to_string(rc) + ")");
-            return -8;
-        }
+    engine->prefilled = true;
+    engine->context_pristine = false;
+    engine->logits_ready = llama_get_logits_ith(engine->context, -1) != nullptr;
+    if (!engine->logits_ready) {
+        set_error(engine, "prefill completed without next-token logits");
+        return -8;
     }
     return 0;
+}
+
+int run_decode(Engine* engine) {
+    engine->next_token_ready = false;
+    if (!engine->prefilled) {
+        set_error(engine, "decode requires a successful prefill");
+        return -1;
+    }
+    if (engine->generated_tokens >= engine->max_tokens) {
+        set_error(engine, "decode exceeds configured max_tokens");
+        return -1;
+    }
+    if (!engine->logits_ready) {
+        set_error(engine, "decode requires next-token logits");
+        return -7;
+    }
+
+    engine->logits_ready = false;
+    engine->next_token =
+        llama_sampler_sample(engine->sampler, engine->context, -1);
+    engine->is_eog = llama_vocab_is_eog(engine->vocab, engine->next_token) ? 1 : 0;
+    engine->next_token_ready = true;
+    ++engine->generated_tokens;
+    if (engine->is_eog) return 0;
+
+    if (!append_piece(engine, engine->next_token)) {
+        engine->next_token_ready = false;
+        return -8;
+    }
+    llama_token next = engine->next_token;
+    llama_batch batch = llama_batch_get_one(&next, 1);
+    const int32_t rc = llama_decode(engine->context, batch);
+    if (rc != 0) {
+        engine->next_token_ready = false;
+        set_error(engine, "llama_decode failed during generation (rc=" +
+                          std::to_string(rc) + ")");
+        return -8;
+    }
+    engine->logits_ready = llama_get_logits_ith(engine->context, -1) != nullptr;
+    if (!engine->logits_ready) {
+        engine->next_token_ready = false;
+        set_error(engine, "decode completed without next-token logits");
+        return -8;
+    }
+    return 0;
+}
+
+int run_infer(void* self) {
+    auto* engine = static_cast<Engine*>(self);
+    if (!engine) return -1;
+    engine->last_error.clear();
+    if (run_prefill(engine) != 0) return -8;
+
+    for (uint32_t i = 0; i < engine->max_tokens; ++i) {
+        if (run_decode(engine) != 0) return -8;
+        if (engine->is_eog) break;
+    }
+    engine->next_token_ready = false;
+    return 0;
+}
+
+int run_stage(void* self, uint32_t stage) {
+    auto* engine = static_cast<Engine*>(self);
+    if (!engine) return -1;
+    engine->last_error.clear();
+    if (stage == FRT_LLAMA_CPP_LLM_STAGE_INDEX_INFER) return run_infer(self);
+    if (stage == FRT_LLAMA_CPP_LLM_STAGE_INDEX_RESET) {
+        return reset_session(engine);
+    }
+    if (stage == FRT_LLAMA_CPP_LLM_STAGE_INDEX_PREFILL) {
+        return run_prefill(engine);
+    }
+    if (stage == FRT_LLAMA_CPP_LLM_STAGE_INDEX_DECODE) {
+        return run_decode(engine);
+    }
+    set_error(engine, "unknown Houmo Llama stage");
+    return -1;
 }
 
 int get_output(void* self, uint32_t port, void* out, uint64_t capacity,
                uint64_t* written, int /*stream*/) {
     auto* engine = static_cast<Engine*>(self);
     if (!engine || !written) return -1;
+    if (port == FRT_LLAMA_CPP_LLM_PORT_NEXT_TOKEN) {
+        *written = sizeof(engine->next_token);
+        if (!engine->next_token_ready) {
+            set_error(engine, "next token not ready");
+            return -7;
+        }
+        if (!out || capacity < sizeof(engine->next_token)) return -5;
+        std::memcpy(out, &engine->next_token, sizeof(engine->next_token));
+        return 0;
+    }
+    if (port == FRT_LLAMA_CPP_LLM_PORT_IS_EOG) {
+        *written = sizeof(engine->is_eog);
+        if (!engine->next_token_ready) {
+            set_error(engine, "is_eog not ready");
+            return -7;
+        }
+        if (!out || capacity < sizeof(engine->is_eog)) return -5;
+        std::memcpy(out, &engine->is_eog, sizeof(engine->is_eog));
+        return 0;
+    }
+    if (port == FRT_LLAMA_CPP_LLM_PORT_LOGITS) {
+        const uint64_t needed = static_cast<uint64_t>(
+            llama_vocab_n_tokens(engine->vocab)) * sizeof(float);
+        *written = needed;
+        if (!engine->logits_ready) {
+            set_error(engine, "logits not ready");
+            return -7;
+        }
+        if (!out || capacity < needed) return -5;
+        const float* logits = llama_get_logits_ith(engine->context, -1);
+        if (!logits) {
+            set_error(engine, "llama_get_logits_ith returned null");
+            return -8;
+        }
+        std::memcpy(out, logits, static_cast<size_t>(needed));
+        return 0;
+    }
     if (port != FRT_LLAMA_CPP_LLM_PORT_TEXT) {
-        set_error(engine, "Houmo Llama engine exposes only the text output");
+        set_error(engine, "unknown Houmo Llama output port");
         return -2;
     }
     const uint64_t needed = static_cast<uint64_t>(engine->output.size());
@@ -253,15 +419,18 @@ int create_llm(void*, const frt_llama_cpp_llm_config* config,
         return -8;
     }
 
-    llama_context_params context_params = llama_context_default_params();
-    context_params.n_ctx = config->n_ctx ? config->n_ctx : 2048;
-    context_params.n_batch = std::min<uint32_t>(context_params.n_ctx, 2048);
-    context_params.n_ubatch = std::min<uint32_t>(context_params.n_batch, 512);
+    engine->context_params = llama_context_default_params();
+    engine->context_params.n_ctx = config->n_ctx ? config->n_ctx : 2048;
+    engine->context_params.n_batch =
+        std::min<uint32_t>(engine->context_params.n_ctx, 2048);
+    engine->context_params.n_ubatch =
+        std::min<uint32_t>(engine->context_params.n_batch, 512);
     if (config->n_threads > 0) {
-        context_params.n_threads = config->n_threads;
-        context_params.n_threads_batch = config->n_threads;
+        engine->context_params.n_threads = config->n_threads;
+        engine->context_params.n_threads_batch = config->n_threads;
     }
-    engine->context = llama_init_from_model(engine->model, context_params);
+    engine->context =
+        llama_init_from_model(engine->model, engine->context_params);
     if (!engine->context) {
         g_create_error = "llama_init_from_model failed";
         release(engine);
@@ -293,7 +462,7 @@ int create_llm(void*, const frt_llama_cpp_llm_config* config,
             engine->sampler, llama_sampler_init_dist(config->seed));
     }
 
-    out->struct_size = FRT_LLAMA_CPP_ENGINE_V1_BASE_SIZE;
+    out->struct_size = FRT_LLAMA_CPP_ENGINE_V1_RUN_STAGE_SIZE;
     out->self = engine;
     out->retain = retain;
     out->release = release;
@@ -301,6 +470,7 @@ int create_llm(void*, const frt_llama_cpp_llm_config* config,
     out->run_infer = run_infer;
     out->get_output = get_output;
     out->last_error = last_error;
+    out->run_stage = run_stage;
     return 0;
 }
 

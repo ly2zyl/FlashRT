@@ -25,6 +25,7 @@ build*/
 # Cache
 .cache/
 .ccache/
+artifacts/m50_qwen/
 
 # Editor / OS
 .vscode/

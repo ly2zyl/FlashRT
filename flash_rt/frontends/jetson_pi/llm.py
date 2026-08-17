@@ -45,7 +45,7 @@ class LlmJetsonPiFrontend:
 
     def __init__(self, checkpoint, *, backend="cpu", n_ctx=0, n_threads=0,
                  temp=0.8, top_k=40, top_p=0.9, seed=1, max_tokens=512,
-                 lib_path=None, **_unused):
+                 model_identity=None, lib_path=None, **_unused):
         if max_tokens <= 0:
             raise ValueError("max_tokens must be > 0")
         self.max_tokens = int(max_tokens)
@@ -68,6 +68,13 @@ class LlmJetsonPiFrontend:
             "seed": int(seed),
             "max_tokens": int(max_tokens),
         }
+        if model_identity is not None:
+            identity = str(model_identity)
+            if (len(identity) != 64 or
+                    any(ch not in "0123456789abcdef" for ch in identity)):
+                raise ValueError(
+                    "model_identity must be a 64-character lowercase SHA-256")
+            config["model_identity"] = identity
         config_json = json.dumps(config, ensure_ascii=False).encode("utf-8")
 
         model_ptr = ctypes.c_void_p(0)
@@ -105,19 +112,7 @@ class LlmJetsonPiFrontend:
         rc = verbs.step(self_)
         self._check(rc, "step infer")
 
-        written = ctypes.c_uint64(0)
-        rc = verbs.get_output(self_, PORT_TEXT, None, 0,
-                           ctypes.byref(written), -1)
-        if rc != -5 or written.value == 0:
-            self._check(rc, "query text output size")
-            raise RuntimeError("query text output size returned zero bytes")
-        cap = written.value
-        out = (ctypes.c_char * cap)()
-        written.value = 0
-        rc = verbs.get_output(self_, PORT_TEXT, out, cap,
-                           ctypes.byref(written), -1)
-        self._check(rc, "get_output text")
-        return out.raw[:written.value].decode("utf-8", errors="replace")
+        return self.get_text()
 
     def reset(self):
         """Clear the current KV-cache and sampler state."""
@@ -126,7 +121,7 @@ class LlmJetsonPiFrontend:
         rc = _run_generic_stage(self._model, "reset")
         self._check(rc, "generic stage reset")
 
-    def prefill(self, prompt=None, *, tokens=None):
+    def prefill(self, prompt=None, *, tokens=None, return_logits=True):
         """Start a session from either raw ``prompt`` or int32 ``tokens``."""
         if self._model is None:
             raise RuntimeError("LlmJetsonPiFrontend is closed")
@@ -151,9 +146,9 @@ class LlmJetsonPiFrontend:
             self._check(rc, "set_input prompt")
         rc = _run_generic_stage(self._model, "prefill")
         self._check(rc, "generic stage prefill")
-        return self.get_logits()
+        return self.get_logits() if return_logits else None
 
-    def decode(self):
+    def decode(self, *, return_text=True):
         """Sample and decode one token from the current session."""
         if self._model is None:
             raise RuntimeError("LlmJetsonPiFrontend is closed")
@@ -183,9 +178,22 @@ class LlmJetsonPiFrontend:
                 f"get_output is_eog wrote {written.value} bytes, expected "
                 f"{ctypes.sizeof(is_eog)}")
 
+        result = {
+            "token": int(next_token.value),
+            "is_eog": bool(is_eog.value),
+        }
+        if return_text:
+            result["text"] = self.get_text()
+        return result
+
+    def get_text(self):
+        """Copy the accumulated completion text once from the provider."""
+        if self._model is None:
+            raise RuntimeError("LlmJetsonPiFrontend is closed")
+        verbs = self._model.verbs
         written = ctypes.c_uint64(0)
         rc = verbs.get_output(self._model.self, PORT_TEXT, None, 0,
-                           ctypes.byref(written), -1)
+                              ctypes.byref(written), -1)
         if rc != -5 or written.value == 0:
             self._check(rc, "query text output size")
             raise RuntimeError("query text output size returned zero bytes")
@@ -193,13 +201,9 @@ class LlmJetsonPiFrontend:
         out = (ctypes.c_char * cap)()
         written.value = 0
         rc = verbs.get_output(self._model.self, PORT_TEXT, out, cap,
-                           ctypes.byref(written), -1)
+                              ctypes.byref(written), -1)
         self._check(rc, "get_output text")
-        return {
-            "token": int(next_token.value),
-            "is_eog": bool(is_eog.value),
-            "text": out.raw[:written.value].decode("utf-8", errors="replace"),
-        }
+        return out.raw[:written.value].decode("utf-8", errors="replace")
 
     def get_logits(self):
         """Copy the current next-token logits into a NumPy float32 array."""
