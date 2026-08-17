@@ -1,0 +1,87 @@
+{
+  "model": "/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf",
+  "framework": "tcim",
+  "execution_path": "FlashRT -> tcim_lite -> TCIM Runtime -> M50",
+  "model_load_ms": 14342.137527884915,
+  "max_tokens": 32,
+  "repeat": 3,
+  "zero_kv_on_reset": false,
+  "libllama_mapped": false,
+  "tcim_runtime_mapped": true,
+  "runs": [
+    {
+      "mode": "staged",
+      "prefill_total_ms": 110.29413784854114,
+      "prefill_hmm_ms": 27.445147978141904,
+      "decode_wall_ms": 123.073740163818,
+      "decode_hmm_ms": 69.41817118786275,
+      "output_tokens": 6,
+      "output_tokens_per_second": 48.75126076459256,
+      "decode_hmm_steps": 5,
+      "decode_hmm_steps_per_second": 72.02725042220952,
+      "host_orchestration_ms": 53.65556897595525,
+      "eog": true,
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        17,
+        151645
+      ],
+      "text": "<think>\n\n</think>\n\n2",
+      "repeat": 1
+    },
+    {
+      "mode": "staged",
+      "prefill_total_ms": 38.162094075232744,
+      "prefill_hmm_ms": 26.0873360093683,
+      "decode_wall_ms": 135.17916505225003,
+      "decode_hmm_ms": 70.93406864441931,
+      "output_tokens": 6,
+      "output_tokens_per_second": 44.38553824238265,
+      "decode_hmm_steps": 5,
+      "decode_hmm_steps_per_second": 70.4879911099442,
+      "host_orchestration_ms": 64.24509640783072,
+      "eog": true,
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        17,
+        151645
+      ],
+      "text": "<think>\n\n</think>\n\n2",
+      "repeat": 2
+    },
+    {
+      "mode": "staged",
+      "prefill_total_ms": 38.880479987710714,
+      "prefill_hmm_ms": 26.23754716478288,
+      "decode_wall_ms": 141.6853009723127,
+      "decode_hmm_ms": 70.73139818385243,
+      "output_tokens": 6,
+      "output_tokens_per_second": 42.34737096103205,
+      "decode_hmm_steps": 5,
+      "decode_hmm_steps_per_second": 70.68996412319572,
+      "host_orchestration_ms": 70.95390278846025,
+      "eog": true,
+      "token_ids": [
+        151667,
+        271,
+        151668,
+        271,
+        17,
+        151645
+      ],
+      "text": "<think>\n\n</think>\n\n2",
+      "repeat": 3
+    }
+  ],
+  "prefill_hmm_ms_median": 26.23754716478288,
+  "output_tokens_per_second_median": 44.38553824238265,
+  "decode_hmm_steps_per_second_median": 70.68996412319572,
+  "host_orchestration_ms_median": 64.24509640783072,
+  "token_ids_repeatable": true
+}

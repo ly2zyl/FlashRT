@@ -7,7 +7,7 @@ icode_dir=$(cd "${repo_dir}/.." && pwd)
 : "${MODEL_GGUF:?Set MODEL_GGUF to a Houmo Qwen GGUF containing M50 HMM assets}"
 
 venv_dir=${FLASHRT_M50_VENV:-"${icode_dir}/.venv-m50-runtime"}
-result_json=${RESULT_JSON:-"${repo_dir}/artifacts/m50_qwen_native/results/qwen_tcim.json"}
+result_json=${RESULT_JSON:-"${repo_dir}/.cache/m50/results/qwen_tcim.json"}
 prompt=${PROMPT:-请只回答一个数字：一加一等于多少？}
 max_tokens=${MAX_TOKENS:-32}
 repeat=${REPEAT:-3}
@@ -21,10 +21,10 @@ if [[ ! -f "${MODEL_GGUF}" ]]; then
     exit 2
 fi
 
-mkdir -p "$(dirname "${result_json}")" "${icode_dir}/.local-share"
+mkdir -p "$(dirname "${result_json}")" "${repo_dir}/.cache/m50/xdg"
 
 export PYTHONPATH="${repo_dir}${PYTHONPATH:+:${PYTHONPATH}}"
-export XDG_DATA_HOME="${icode_dir}/.local-share"
+export XDG_DATA_HOME="${repo_dir}/.cache/m50/xdg"
 export TCIM_BACKEND=Xh2HalBackend
 export LD_LIBRARY_PATH="/opt/houmo-tcim-runtime-1.4.0/lib:/usr/local/houmo-sdk/hal/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 

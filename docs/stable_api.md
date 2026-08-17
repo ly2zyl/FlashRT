@@ -24,12 +24,12 @@ flash_rt.VLAModel      # inference wrapper
 ```python
 def load_model(
     checkpoint: str,
-    framework: str = "torch",       # "torch" | "jax"
+    framework: str = "torch",       # "torch" | "jax" | "jetson_pi" | "tcim"
     num_views: int = 2,             # 1, 2, or 3
     autotune: int = 3,              # 0=off, 3=default, 5+=thorough
     recalibrate: bool = False,
     weight_cache: bool = True,      # JAX only
-    config: str = "pi05",           # "pi05" | "pi0" | "groot" | "groot_n17" | "pi0fast" | "motus" | "wan22_ti2v_5b" | "cosmos3_video" | "cosmos3_edge"
+    config: str = "pi05",           # includes config="qwen" with framework="tcim"
     device=None,                    # reserved
     # Pi0-FAST-specific:
     decode_cuda_graph: bool = False,
@@ -71,11 +71,15 @@ def load_model(
 Returns a `VLAModel` wrapping the appropriate frontend for the detected
 (or explicitly specified) GPU architecture.
 
+`framework="tcim", config="qwen"` returns the text-generation
+`QwenM50Frontend` directly. It accepts the staged `prefill()` / `decode()`
+surface and `generate()`. See the centralized [M50 guide](m50/README.md).
+
 - `hardware="m50_hmm_compat"` selects the non-native Houmo M50 Pi0.5 adapter. It uses
   `compiled_model_dir` (or `FLASHRT_M50_MODEL_DIR`) for the HMM bundle,
   `tokenizer_path` (or `FLASHRT_M50_TOKENIZER_DIR`) for the local PaliGemma
   tokenizer, and `device_id` for the XH2 device index. See
-  [`m50_pi05.md`](m50_pi05.md).
+  [`m50/pi05_compatibility.md`](m50/pi05_compatibility.md).
 
 - `decode_cuda_graph`, `decode_graph_steps`, `max_decode_steps` apply to
   Pi0-FAST.

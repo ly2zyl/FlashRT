@@ -129,7 +129,7 @@ class QwenM50Frontend:
         ).hexdigest()[:16]
         if cache_dir is None:
             repo_dir = Path(__file__).resolve().parents[3]
-            cache_dir = repo_dir / ".cache" / "m50-qwen-tokenizers"
+            cache_dir = repo_dir / ".cache" / "m50" / "tokenizer"
         target = Path(cache_dir).resolve() / key
         target.mkdir(parents=True, exist_ok=True)
         for name in _TOKENIZER_ASSETS:

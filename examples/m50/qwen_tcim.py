@@ -16,11 +16,14 @@ def run_staged(model, prompt, max_tokens):
     model.prefill(prompt, return_logits=False)
     prefill_total_ms = (time.perf_counter() - started) * 1000.0
     tokens = []
+    decode_hmm_steps = 0
     eog = False
     decode_wall_started = time.perf_counter()
     for _ in range(max_tokens):
         result = model.decode(return_text=False)
         tokens.append(result["token"])
+        if result["decode_ms"] > 0.0:
+            decode_hmm_steps += 1
         eog = result["is_eog"]
         if eog:
             break
@@ -31,10 +34,16 @@ def run_staged(model, prompt, max_tokens):
         "prefill_hmm_ms": model.last_prefill_ms,
         "decode_wall_ms": decode_wall_ms,
         "decode_hmm_ms": model.last_decode_ms,
-        "decode_tokens": len(tokens),
-        "decode_tokens_per_second": (
+        "output_tokens": len(tokens),
+        "output_tokens_per_second": (
             len(tokens) * 1000.0 / decode_wall_ms if decode_wall_ms else 0.0
         ),
+        "decode_hmm_steps": decode_hmm_steps,
+        "decode_hmm_steps_per_second": (
+            decode_hmm_steps * 1000.0 / model.last_decode_ms
+            if model.last_decode_ms else 0.0
+        ),
+        "host_orchestration_ms": decode_wall_ms - model.last_decode_ms,
         "eog": eog,
         "token_ids": tokens,
         "text": model.get_text(),
@@ -89,8 +98,12 @@ def main():
         "runs": runs,
         "prefill_hmm_ms_median": statistics.median(
             run["prefill_hmm_ms"] for run in runs),
-        "decode_tokens_per_second_median": statistics.median(
-            run["decode_tokens_per_second"] for run in runs),
+        "output_tokens_per_second_median": statistics.median(
+            run["output_tokens_per_second"] for run in runs),
+        "decode_hmm_steps_per_second_median": statistics.median(
+            run["decode_hmm_steps_per_second"] for run in runs),
+        "host_orchestration_ms_median": statistics.median(
+            run["host_orchestration_ms"] for run in runs),
         "token_ids_repeatable": all(
             run["token_ids"] == runs[0]["token_ids"] for run in runs[1:]),
     }
