@@ -10,6 +10,7 @@ FlashRT 原有的 `flash_rt/`、`examples/` 和 `tests/` 目录，避免扩大�
 ```text
 docs/m50/
 ├── README.md
+├── qwen_tcim_debug_report_20260817.md
 ├── qwen_tcim_test_report_20260817.md
 └── results/
     ├── qwen3_0.6b_tcim_20260817.json
@@ -19,7 +20,8 @@ docs/m50/
 | 文件 | 内容 | 状态 |
 |---|---|---|
 | `README.md` | 环境、部署、运行和复现方法 | 当前有效 |
-| `qwen_tcim_test_report_20260817.md` | Qwen3-0.6B 原生 TCIM 路径完整测试报告 | M50 实机通过 |
+| `qwen_tcim_test_report_20260817.md` | 正确性、性能、测试方法和原始结果 | M50 实机通过 |
+| `qwen_tcim_debug_report_20260817.md` | Bug 现象、根因、修复方法和当前状态 | 已完成实机回归 |
 | `results/*.json` | 功能与性能测试原始数据 | M50 实机生成 |
 
 ## 2. 当前支持范围
@@ -184,8 +186,9 @@ cd /home/sky/icode/FlashRT
 Qwen 原生 TCIM 路径是 Python 直接调用 `tcim_lite`，不需要构建 FlashRT C++
 扩展。
 
-完整测试方法、结果和已知限制见
-[`qwen_tcim_test_report_20260817.md`](qwen_tcim_test_report_20260817.md)。
+测试结果见 [`qwen_tcim_test_report_20260817.md`](qwen_tcim_test_report_20260817.md)，
+调试修复过程见
+[`qwen_tcim_debug_report_20260817.md`](qwen_tcim_debug_report_20260817.md)。
 
 ## 9. 已知边界
 
