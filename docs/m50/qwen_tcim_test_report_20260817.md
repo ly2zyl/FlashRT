@@ -1,95 +1,79 @@
 # FlashRT 原生 TCIM 后端 M50/Qwen3-0.6B 测试报告
 
 - 测试日期：2026-08-17
-- 测试对象：FlashRT `tcim/qwen` 前端
-- 目标设备：后摩 M50/XH2，device 0
+- 测试对象：`flash_rt.load_model(..., framework="tcim", config="qwen")`
+- 测试设备：后摩 M50/XH2，device 0
 
-## 1. 测试目的
+## 1. 结论
 
-验证 FlashRT 在不使用 llama.cpp 和 HLIELLama 的条件下，能否直接管理 Qwen
-推理流程，并通过 `tcim_lite` 调度既有 HMM 在 M50 上稳定执行。测试同时检查
-输入边界、跨请求状态、重复性、运行时依赖和端到端性能。
+修正代码链路后，Qwen3-0.6B 已在 M50 上通过功能、状态隔离、资源释放、依赖
+检查和重复性能测试。三次推理输出 token 完全一致，连续请求结果正确，进程未
+加载 llama.cpp 或 HLIELLama。
 
-## 2. 测试结论
+本轮定位并修复了 KV Cache 绑定方向、逐 token 临时对象、采样缓冲区、EOG
+状态保护、参数校验和 GGUF 内存映射释放问题。32-token 端到端吞吐由修复前的
+38.123 token/s 提升到 41.427 token/s。
 
-本次测试未发现阻断部署的功能问题。Qwen3-0.6B 已完成真实 M50 推理，输出
-正确且可重复，连续请求未观察到 KV Cache 串话，进程未加载 `libllama.so`。
-
-当前主要限制是性能而非正确性。32-token 测试中，TCIM decode 图执行中位吞吐
-为 70.855 step/s，FlashRT 端到端输出吞吐为 38.123 token/s。逐 token 的输入
-绑定、输出获取、全词表采样和 Python 调度合计占用 401.871 ms，后续优化应优先
-减少 host/device 同步与 Python 热路径开销。
-
-## 3. 被测链路与责任边界
+## 2. 被测执行链路
 
 ```text
 Qwen GGUF
-  -> FlashRT GGUF 索引解析
-  -> tokenizer 与 embedding lookup
-  -> FlashRT prefill/decode/KV Cache 调度与采样
+  -> FlashRT：GGUF 解析、tokenizer、embedding、KV Cache、prefill/decode、采样
   -> tcim_lite
-  -> TCIM Runtime 执行 prefill.hmm、decoder.hmm
-  -> M50
+  -> TCIM Runtime：执行 prefill.hmm 和 decoder.hmm
+  -> M50/XH2
 ```
 
-GGUF 是本次后摩交付件的容器，并不表示由 llama.cpp 执行。FlashRT 使用文件
-偏移直接将其中的 HMM 交给 TCIM。量化、图编译和 HMM 生成属于离线工具链，
-不在本次运行时测试范围内。
+GGUF 仅作为模型交付容器。FlashRT 根据文件偏移加载其中的 HMM，不调用
+`libllama.so`。HMM 的离线量化与编译不属于本次运行时链路。
 
-## 4. 测试环境
+## 3. 测试环境和模型
 
-| 项目 | 配置 |
+| 项目 | 实际配置 |
 |---|---|
 | 主机 | aarch64，Ubuntu 22.04.5 LTS，kernel 5.10.226 |
-| Python | 3.12.13，独立环境 `/home/sky/icode/.venv-m50-runtime` |
-| M50 | HoumoNPU LQ50-24GB，device 0，单卡可见 |
-| 后摩软件 | HMSW V1.4.0，Driver V1.4.0，Firmware V1.4.0 |
-| TCIM | Runtime V1.4.0，`houmo_tcim_runtime_xh2==1.4.0` |
-| Python 依赖 | `transformers==4.57.6`，`numpy==2.2.6`，`pytest==9.1.1` |
-| FlashRT | 分支 `codex/m50-qwen-tcim-native`，以报告提交的 Git HEAD 为准 |
+| Python | 3.12.13，`/home/sky/icode/.venv-m50-runtime` |
+| M50 | HoumoNPU LQ50-24GB，device 0 |
+| 后摩软件 | HMSW、Driver、Firmware、TCIM Runtime 均为 V1.4.0 |
+| Python 依赖 | `houmo_tcim_runtime_xh2==1.4.0`，`transformers==4.57.6`，`numpy==2.2.6` |
+| 模型 | Qwen3-0.6B，GGUF V3，HMM V1.2.0，batch 1，单卡 2 核 |
+| 模型文件 | `HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf` |
+| 输入规格 | prefill 256 token，context 32768 token，embedding 151936 × 1024 FP16 |
 
-测试模型：
+模型文件大小为 1,006,385,824 bytes。`quant_embedding.bin`、`prefill.hmm`、
+`decoder.hmm` 和 tokenizer 资产均通过文件范围检查。
 
-```text
-/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf
-```
+## 4. 调试发现与修正
 
-| 模型属性 | 实际值 |
-|---|---|
-| 名称与目标 | Qwen3-0.6B，XH2，batch 1，单卡 2 核 |
-| 文件大小 | 1,006,385,824 bytes |
-| GGUF / HMM | GGUF V3，HMM V1.2.0，`is_hmm=true` |
-| Prefill / Context | 256 / 32768 token |
-| Embedding | FP16，151936 × 1024 |
+| 项目 | 原因 | 修正 | 实机验证 |
+|---|---|---|---|
+| KV Cache 所有权方向错误 | decoder 的 Cache 输入被设为 dummy tensor，原实现却从 decoder 取 Cache 再绑定给 prefill，不符合 TCIM 接口契约 | 改为由 prefill 分配 Cache，再通过 `decode.set_input()` 绑定给 decoder | 连续 2→3→2 请求正确，无串话 |
+| Decode 热路径重复分配 | 每 token 新建 embedding、valid length 和 current length 数组 | 初始化时预分配并循环复用 | 输出不变，host 开销下降 |
+| Greedy 采样临时分配 | 每 token 创建新的 FP32 logits 数组 | 使用固定 FP32 采样缓冲区；缓存输入输出名称 | 32-token 吞吐提升 8.7% |
+| EOG 后仍可继续 decode | 只记录 token 数，没有完成状态 | 增加 `_finished` 状态，EOG 或 token 预算结束后拒绝再次 decode | 专项单元测试通过 |
+| 运行参数约束不完整 | 负 device、temperature、top-k 或越界 top-p 未提前拒绝 | 构造阶段统一校验 | 5 组非法参数单元测试通过 |
+| GGUF mmap 未显式关闭 | `close()` 只释放 TCIM module，没有关闭 embedding memmap | 关闭底层 mmap 并清空引用 | 模型文件描述符由加载时 1 个降为关闭后 0 个 |
 
-GGUF 资产边界检查结果：
+TCIM 启动时打印的 backend warning 也进行了核查。后摩官方 YOLO、算子和
+`tcim_perf` 工具使用环境变量选择 `Xh2HalBackend` 时会打印相同信息，当前
+`tcim_lite.runtime.Option` 也没有 backend setter。因此该信息属于 TCIM Runtime
+的统一回退提示，不是 FlashRT 代码错误。
 
-| 资产 | 文件偏移 | 大小 | 边界检查 |
-|---|---:|---:|---|
-| `quant_embedding.bin` | 5,933,728 | 311,164,944 bytes | 通过 |
-| `prefill.hmm` | 317,098,688 | 656,047,800 bytes | 通过 |
-| `decoder.hmm` | 973,146,496 | 17,357,072 bytes | 通过 |
-| `tokenizer.json` | 990,503,584 | 11,422,654 bytes | 通过 |
+## 5. 功能测试结果
 
-## 5. 测试项目与结果
+| 测试项 | 判定标准 | 结果 |
+|---|---|---|
+| Qwen 专项单元测试 | GGUF 解析、API 分发、参数校验、EOG 和资源释放 | 10/10 通过 |
+| M50 加载 | 两个 HMM 和共享 KV Cache 正常初始化 | 通过 |
+| 短回答重复性 | 相同提示连续执行 3 次 | 输出 token 3/3 一致 |
+| 会话状态隔离 | 同一实例依次请求输出 2、3、2 | 分别输出 2、3、2 |
+| KV Cache 物理复位 | `zero_kv_on_reset=True` 连续执行两次 | 两次输出一致 |
+| EOG 状态 | 生成结束后再次调用 `decode()` | 被完成状态保护拦截 |
+| 资源释放 | 比较模型加载前、加载中和 `close()` 后的文件描述符 | 0 → 1 → 0 |
+| 动态库依赖 | 检查 `/proc/self/maps` | TCIM 已加载，`libllama.so` 未加载 |
+| 测试后设备状态 | 再次执行 `hm_smi` | device 0 正常 |
 
-| 编号 | 测试项目 | 方法与判定条件 | 结果 |
-|---:|---|---|---|
-| 1 | M50 与运行时可见性 | `hm_smi` 正常；`get_device_num("Xh2HalBackend") == 1` | 通过 |
-| 2 | GGUF 解析与边界 | 解析 V3 元数据；4 个必需资产均在文件范围内 | 通过 |
-| 3 | API 分发 | `framework="tcim", config="qwen"` 创建 M50 前端；错误配置被拒绝 | 通过 |
-| 4 | 启动脚本校验 | 指定不存在的 GGUF | 返回码 2，错误信息明确 |
-| 5 | 单元与回归 | M50 Qwen、Pi0.5 资源分发、动作变换共 11 项 | 11/11 通过 |
-| 6 | CMake 配置回归 | 关闭 CUDA 与执行器后完成 configure | 通过；仅提示未构建可选 pybind11 模块 |
-| 7 | 文本输入功能 | 指令仅输出数字 2，连续 3 次 token 序列一致 | 通过 |
-| 8 | Token 输入功能 | 同一 prompt 改用 token IDs 输入 | 输出与文本输入一致 |
-| 9 | 会话隔离 | 同一实例依次请求 2、3、2 | 分别输出 2、3、2，无可见串话 |
-| 10 | 物理 KV 清零 | `zero_kv_on_reset=True` 连续请求两次 | 两次结果一致 |
-| 11 | 输入与生命周期边界 | 257-token prompt；关闭后再次 `reset()` | 均按预期抛出异常 |
-| 12 | 运行时依赖 | 检查 `/proc/self/maps` | TCIM 已加载，`libllama.so` 未加载 |
-| 13 | 设备测试后状态 | 再次执行 `hm_smi` | device 0 正常，无驱动或固件错误 |
-
-功能测试实际输出：
+短回答实际输出：
 
 ```text
 输入：请只输出数字2，不要输出其他内容。 /no_think
@@ -97,89 +81,38 @@ GGUF 资产边界检查结果：
 Token IDs：[151667, 271, 151668, 271, 17, 151645]
 ```
 
-交替请求输出为：
-
-```text
-2 -> 3 -> 2
-```
-
-边界检查错误信息为：
-
-```text
-ValueError: prompt requires 1..256 tokens, got 257
-RuntimeError: QwenM50Frontend is closed
-```
-
 ## 6. 性能测试结果
 
-性能测试使用 greedy sampling、batch 1、最大输出 32 token，每项连续执行 3
-次。短回答用于功能验证；矩阵乘法说明提示词在 32 token 时未遇到 EOG，用于
-稳定吞吐统计。原始数据位于 [`results/`](results/)。
+测试参数为 batch 1、greedy sampling、固定输出 32 token、连续执行 3 次。
+32 个输出 token 对应 31 次 decoder HMM 执行；首个 token 来自 prefill logits。
 
-| 指标 | 短回答测试 | 32-token 吞吐测试 | 说明 |
-|---|---:|---:|---|
-| 模型加载时间 | 14.342 s | 14.388 s | 包含 GGUF 解析、TCIM 图加载和缓存分配 |
-| Prefill HMM 中位时延 | 26.238 ms | 26.154 ms | 仅 TCIM prefill 图执行与同步 |
-| Prefill 端到端中位时延 | 38.880 ms | 40.057 ms | 包含 tokenizer、embedding 与输入绑定；首轮冷启动约 110 ms |
-| TCIM decode 图中位吞吐 | 70.690 step/s | 70.855 step/s | 仅实际执行的 decode HMM；32 个输出对应 31 次图执行 |
-| FlashRT 端到端输出吞吐 | 44.386 token/s | 38.123 token/s | 包含采样、张量获取和 Python 调度 |
-| Decode host 调度中位开销 | 64.245 ms / 6 token | 401.871 ms / 32 token | `decode_wall_ms - decode_hmm_ms` |
-| Token 序列重复性 | 3/3 一致 | 3/3 一致 | `temp=0.0` |
+| 指标 | 修复前 | 修复后 | 变化 |
+|---|---:|---:|---:|
+| 模型加载时间 | 14.388 s | 14.399 s | 基本不变 |
+| Prefill HMM 中位时延 | 26.154 ms | 26.267 ms | 基本不变 |
+| TCIM decoder 图中位吞吐 | 70.855 step/s | 71.658 step/s | +1.1% |
+| FlashRT 端到端输出吞吐 | 38.123 token/s | 41.427 token/s | +8.7% |
+| 图外 host 时间 | 401.871 ms | 339.823 ms | -15.4% |
+| Token 序列重复性 | 3/3 一致 | 3/3 一致 | 不变 |
 
-32-token 三次端到端输出吞吐分别为 35.365、41.715 和 38.123 token/s；TCIM
-图执行吞吐分别为 70.165、72.237 和 70.855 step/s。TCIM 图本身波动较小，
-端到端波动主要出现在图执行之外的 host 路径。
+修复后三次端到端吞吐分别为 42.197、39.676 和 41.427 token/s。原始结果见：
 
-## 7. 问题与风险分析
+- [`results/qwen3_0.6b_tcim_20260817.json`](results/qwen3_0.6b_tcim_20260817.json)
+- [`results/qwen3_0.6b_tcim_throughput_20260817.json`](results/qwen3_0.6b_tcim_throughput_20260817.json)
 
-### 7.1 未发现的阻断问题
+当前 HMM 每步输出形状为 `[1, 1, 151936]` 的 FP16 完整词表 logits。CPU 采样
+必须在每个 token 取回约 304 KiB logits，同时完成三个输入绑定，因此图外时间
+不能完全消除。进一步明显提速需要新增设备端 sampler/argmax HMM，或者让 TCIM
+只回传候选 token；这需要新的编译产物，不是现有 Python 调度代码可以独立完成。
 
-- 未发现输出错误、HMM 加载失败、设备掉卡或运行时崩溃；
-- 未发现默认逻辑复位导致的跨请求 KV Cache 污染；
-- 未发现 HLIELLama 或 `libllama.so` 被间接加载；
-- 文本输入和 token 输入得到一致结果。
-
-### 7.2 已确认的性能限制
-
-端到端 decode 明显慢于 TCIM 图执行。当前每步由 Python 完成输入绑定、TCIM
-调用、输出获取、全词表采样和状态更新，这些操作在 32-token 测试中合计约占
-decode wall time 的 48%。这不影响正确性，但说明当前实现尚未充分发挥 M50 图
-执行吞吐。
-
-后续优化建议按以下顺序验证：
-
-1. 将 greedy/top-k/top-p 采样下沉到设备或 TCIM 可执行图；
-2. 避免每 token 获取完整 logits，优先只回传候选 token；
-3. 合并输入绑定与同步操作，减少 Python/C++ 边界调用；
-4. 增加长序列和多并发基准，确认 host 开销比例是否随负载变化。
-
-### 7.3 使用限制
-
-- 默认逻辑复位通过 `valid_length=0` 隔离历史 KV，不物理清零约 1.75 GiB Cache；
-- 物理清零模式功能正常，但第二次短请求端到端耗时约 777 ms，不能作为默认
-  低时延配置；
-- 当前 GGUF 的 prompt 上限为 256 token；
-- Qwen3.6-35B-A3B 的卷积与 SSM 状态绑定尚未实现；
-- HMM 必须由匹配的离线量化编译工具链生成，本机运行时不能替代该工具链。
-
-### 7.4 非故障提示
-
-- TCIM 启动时会提示使用环境变量中的 `Xh2HalBackend`，随后提示空 backend
-  名称回退到该默认值；本次所有测试均正常完成；
-- 系统 `PATH` 中没有 `cmake`，应使用虚拟环境内的
-  `/home/sky/icode/.venv-m50-runtime/bin/cmake`；
-- CMake 提示基础 Python 3.13 缺少 `pybind11` 时会只配置 C ABI。本 Qwen 路径
-  是 Python 直接调用 `tcim_lite`，不依赖该可选模块。
-
-## 8. 复现命令
+## 7. 复现命令
 
 ```bash
 cd /home/sky/icode/FlashRT
 
+PYTHONDONTWRITEBYTECODE=1 \
 /home/sky/icode/.venv-m50-runtime/bin/pytest -q \
-  tests/test_m50_qwen_frontend.py \
-  tests/test_m50_pi05_frontend.py \
-  tests/test_action_transforms.py
+  tests/test_m50_qwen_frontend.py
 
 export MODEL_GGUF=/home/sky/HiModel_xh2_qwen3_0.6b_256_32k_b1_1chip_2cores_v1.2.0_20260422.gguf
 export MAX_TOKENS=32
@@ -190,7 +123,7 @@ export RESULT_JSON=/home/sky/icode/FlashRT/docs/m50/results/qwen3_0.6b_tcim_thro
 examples/m50/run_qwen_tcim.sh
 ```
 
-运行结果必须同时满足：
+结果应同时满足：
 
 ```json
 {
@@ -200,9 +133,10 @@ examples/m50/run_qwen_tcim.sh
 }
 ```
 
-## 9. 最终判定
+## 8. 适用边界
 
-FlashRT 原生 TCIM Qwen3-0.6B 路径满足当前 M50 单会话功能部署要求，可作为
-后续优化基线。当前结果证明的是“FlashRT 管理推理流程并调用 TCIM 执行已有
-HMM”，不是“FlashRT 已实现 M50 离线量化编译器”。在扩大模型范围或用于高
-吞吐服务前，应先处理逐 token host 调度开销，并补充长上下文与并发压力测试。
+- 当前验证对象仅为该 Qwen3-0.6B M50 交付件；
+- prompt 上限为 256 token，decode context 上限为 32768 token；
+- 当前实现为 batch 1、单会话实例；
+- Qwen3.6-35B-A3B 需要额外绑定卷积和 SSM 状态，不能直接复用本实现；
+- aarch64 M50 机器只运行已有 HMM，不能替代 x86_64 离线量化编译工具链。

@@ -10,7 +10,6 @@ FlashRT 原有的 `flash_rt/`、`examples/` 和 `tests/` 目录，避免扩大�
 ```text
 docs/m50/
 ├── README.md
-├── pi05_compatibility.md
 ├── qwen_tcim_test_report_20260817.md
 └── results/
     ├── qwen3_0.6b_tcim_20260817.json
@@ -20,7 +19,6 @@ docs/m50/
 | 文件 | 内容 | 状态 |
 |---|---|---|
 | `README.md` | 环境、部署、运行和复现方法 | 当前有效 |
-| `pi05_compatibility.md` | Pi0.5 HMM 兼容前端的资源要求与验证边界 | 前端已实现，未完成模型实测 |
 | `qwen_tcim_test_report_20260817.md` | Qwen3-0.6B 原生 TCIM 路径完整测试报告 | M50 实机通过 |
 | `results/*.json` | 功能与性能测试原始数据 | M50 实机生成 |
 
@@ -38,9 +36,6 @@ Qwen GGUF 交付件
 
 该路径不导入、不链接也不加载 llama.cpp 或 HLIELLama。FlashRT 并不在 M50
 机器上重新量化、编译模型；GGUF 中的 HMM 必须由匹配的后摩离线工具链预先生成。
-
-Pi0.5 当前只有兼容既有六图 HMM 交付件的前端，因本机没有完整 Pi0.5 HMM
-资源包而未进行模型实测，不能将其表述为已部署完成。
 
 ## 3. 测试机器与软件版本
 
@@ -183,22 +178,11 @@ cd /home/sky/icode/FlashRT
   'import tcim_lite; print(tcim_lite.runtime.get_device_num("Xh2HalBackend"))'
 
 /home/sky/icode/.venv-m50-runtime/bin/pytest -q \
-  tests/test_m50_qwen_frontend.py \
-  tests/test_m50_pi05_frontend.py \
-  tests/test_action_transforms.py
+  tests/test_m50_qwen_frontend.py
 ```
 
-Qwen 原生 TCIM 路径本身不需要构建 FlashRT C++ 扩展。若需执行仓库 CMake
-配置回归，应明确使用 venv 中的 CMake，因为本机系统 `PATH` 未安装 `cmake`：
-
-```bash
-/home/sky/icode/.venv-m50-runtime/bin/cmake \
-  -S cpp -B build/m50-tcim-validation \
-  -DBUILD_TESTING=OFF \
-  -DFLASHRT_CPP_WITH_CUDA_KERNELS=OFF \
-  -DFLASHRT_CPP_WITH_CUDA_STAGING=OFF \
-  -DFLASHRT_CPP_WITH_EXEC=OFF
-```
+Qwen 原生 TCIM 路径是 Python 直接调用 `tcim_lite`，不需要构建 FlashRT C++
+扩展。
 
 完整测试方法、结果和已知限制见
 [`qwen_tcim_test_report_20260817.md`](qwen_tcim_test_report_20260817.md)。

@@ -8,7 +8,6 @@ sampling, and text decoding.  TCIM only executes the compiled HMM graphs.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import struct
 import time
@@ -37,6 +36,14 @@ class QwenM50Frontend:
                  tokenizer_cache_dir=None, zero_kv_on_reset=False, **_unused):
         if max_tokens <= 0:
             raise ValueError("max_tokens must be greater than zero")
+        if int(device_id) < 0:
+            raise ValueError("device_id must be non-negative")
+        if float(temp) < 0.0:
+            raise ValueError("temp must be non-negative")
+        if int(top_k) < 0:
+            raise ValueError("top_k must be non-negative")
+        if not 0.0 <= float(top_p) <= 1.0:
+            raise ValueError("top_p must be in the range [0, 1]")
         self.model_path = Path(checkpoint).resolve()
         if not self.model_path.is_file():
             raise FileNotFoundError(f"Houmo Qwen GGUF not found: {checkpoint}")
@@ -60,6 +67,7 @@ class QwenM50Frontend:
         )
         self._embedding = self._open_embedding()
         self.vocab_size, self.hidden_size = self._embedding.shape
+        self._sampling_logits = np.empty(self.vocab_size, dtype=np.float32)
 
         try:
             import tcim_lite as tcim
@@ -77,12 +85,14 @@ class QwenM50Frontend:
         self._prefill = tcim.runtime.load(
             str(self.model_path), option=prefill_option)
 
-        cache_names = [
+        self._prefill_input_names = tuple(
             self._prefill.get_input_name(i)
-            for i in range(self._prefill.get_num_inputs())
-            if "model_layers_" in self._prefill.get_input_name(i)
-            and ("kcache_input" in self._prefill.get_input_name(i)
-                 or "vcache_input" in self._prefill.get_input_name(i))
+            for i in range(self._prefill.get_num_inputs()))
+        self._prefill_output_name = self._prefill.get_output_name(0)
+        cache_names = [
+            name for name in self._prefill_input_names
+            if "model_layers_" in name
+            and ("kcache_input" in name or "vcache_input" in name)
         ]
         if not cache_names:
             raise RuntimeError("prefill HMM exposes no KV-cache inputs")
@@ -93,20 +103,35 @@ class QwenM50Frontend:
         decode_option.set_dummy_tensors(cache_names)
         self._decode = tcim.runtime.load(
             str(self.model_path), option=decode_option)
+        self._decode_input_names = tuple(
+            self._decode.get_input_name(i)
+            for i in range(self._decode.get_num_inputs()))
+        self._decode_output_name = self._decode.get_output_name(0)
 
         self._cache_tensors = []
         for name in cache_names:
-            cache = self._decode.get_dev_input(name)
-            self._prefill.set_input(name, cache)
+            # The prefill module owns the allocated KV cache.  Decode marks
+            # these inputs as dummy tensors and borrows the same device
+            # buffers, which is the ownership direction required by TCIM.
+            cache = self._prefill.get_dev_input(name)
+            self._decode.set_input(name, cache)
             self._cache_tensors.append(cache)
 
         prefill_info = self._prefill.get_input_info(
-            self._prefill.get_input_name(0))
+            self._prefill_input_names[0])
         self.prefill_length = int(prefill_info.shape[1])
         if int(prefill_info.shape[2]) != self.hidden_size:
             raise RuntimeError("embedding width does not match prefill HMM")
         self.context_length = int(
             self._prefill.get_input_info(cache_names[0]).shape[2])
+        self._prefill_embeddings = np.zeros(
+            (1, self.prefill_length, self.hidden_size), dtype=np.float16)
+        self._prefill_valid_length = np.zeros(1, dtype=np.int32)
+        self._prefill_current_length = np.zeros(1, dtype=np.int32)
+        self._decode_embedding = np.empty(
+            (1, 1, self.hidden_size), dtype=np.float16)
+        self._decode_valid_length = np.zeros(1, dtype=np.int32)
+        self._decode_current_length = np.ones(1, dtype=np.int32)
         self.eos_token_ids = set()
         for value in (
                 self.tokenizer.eos_token_id,
@@ -118,6 +143,7 @@ class QwenM50Frontend:
         self._generated_ids = []
         self._valid_length = 0
         self._session_started = False
+        self._finished = False
         self._closed = False
         self.last_prefill_ms = 0.0
         self.last_decode_ms = 0.0
@@ -174,10 +200,16 @@ class QwenM50Frontend:
         return tensor.numpy() if hasattr(tensor, "numpy") else np.asarray(tensor)
 
     def _sample(self, logits):
-        values = np.asarray(logits, dtype=np.float32).reshape(-1)
+        source = np.asarray(logits).reshape(-1)
+        if source.size != self.vocab_size:
+            raise RuntimeError(
+                f"logits size {source.size} does not match vocabulary "
+                f"size {self.vocab_size}")
+        np.copyto(self._sampling_logits, source, casting="unsafe")
+        values = self._sampling_logits
         if self.temp <= 0.0:
             return int(np.argmax(values))
-        values = values / self.temp
+        values /= self.temp
         candidates = np.arange(values.size)
         if 0 < self.top_k < values.size:
             selected = np.argpartition(values, -self.top_k)[-self.top_k:]
@@ -215,6 +247,7 @@ class QwenM50Frontend:
         self._generated_ids = []
         self._valid_length = 0
         self._session_started = False
+        self._finished = False
         self.last_decode_ms = 0.0
 
     def prefill(self, prompt=None, *, tokens=None, return_logits=True):
@@ -230,21 +263,23 @@ class QwenM50Frontend:
         if np.any(input_ids < 0) or np.any(input_ids >= self.vocab_size):
             raise ValueError("prompt contains token IDs outside the vocabulary")
 
-        embeddings = np.zeros(
-            (1, self.prefill_length, self.hidden_size), dtype=np.float16)
-        embeddings[0, :input_ids.size] = self._embedding[input_ids]
-        valid_length = np.array([0], dtype=np.int32)
-        current_length = np.array([input_ids.size], dtype=np.int32)
-        self._prefill.set_input(self._prefill.get_input_name(0), embeddings)
-        self._prefill.set_input(self._prefill.get_input_name(1), valid_length)
-        self._prefill.set_input(self._prefill.get_input_name(2), current_length)
+        self._prefill_embeddings.fill(0)
+        self._prefill_embeddings[0, :input_ids.size] = self._embedding[input_ids]
+        self._prefill_valid_length[0] = 0
+        self._prefill_current_length[0] = input_ids.size
+        self._prefill.set_input(
+            self._prefill_input_names[0], self._prefill_embeddings)
+        self._prefill.set_input(
+            self._prefill_input_names[1], self._prefill_valid_length)
+        self._prefill.set_input(
+            self._prefill_input_names[2], self._prefill_current_length)
 
         started = time.perf_counter()
         self._prefill.run()
         self._prefill.sync()
         self.last_prefill_ms = (time.perf_counter() - started) * 1000.0
         self._logits = self._numpy(
-            self._prefill.get_output(self._prefill.get_output_name(0)))
+            self._prefill.get_output(self._prefill_output_name))
         self._valid_length = int(input_ids.size)
         self._session_started = True
         return self._logits.copy() if return_logits else None
@@ -252,6 +287,8 @@ class QwenM50Frontend:
     def decode(self, *, return_text=True):
         if self._logits is None:
             raise RuntimeError("decode requires a successful prefill")
+        if self._finished:
+            raise RuntimeError("decode called after generation finished")
         if len(self._generated_ids) >= self.max_tokens:
             raise RuntimeError("decode exceeds configured max_tokens")
 
@@ -259,20 +296,22 @@ class QwenM50Frontend:
         is_eog = token in self.eos_token_ids
         self._generated_ids.append(token)
         budget_exhausted = len(self._generated_ids) >= self.max_tokens
+        self._finished = is_eog or budget_exhausted
         decode_ms = 0.0
         if not is_eog and not budget_exhausted:
             if self._valid_length >= self.context_length:
                 raise RuntimeError("decode exceeds the HMM context length")
-            embedding = np.ascontiguousarray(
-                self._embedding[token:token + 1].reshape(1, 1, -1))
-            self._decode.set_input(self._decode.get_input_name(0), embedding)
+            self._decode_embedding[0, 0] = self._embedding[token]
+            self._decode_valid_length[0] = self._valid_length
             self._decode.set_input(
-                self._decode.get_input_name(1),
-                np.array([self._valid_length], dtype=np.int32),
+                self._decode_input_names[0], self._decode_embedding)
+            self._decode.set_input(
+                self._decode_input_names[1],
+                self._decode_valid_length,
             )
             self._decode.set_input(
-                self._decode.get_input_name(2),
-                np.array([1], dtype=np.int32),
+                self._decode_input_names[2],
+                self._decode_current_length,
             )
             started = time.perf_counter()
             self._decode.run()
@@ -280,7 +319,7 @@ class QwenM50Frontend:
             decode_ms = (time.perf_counter() - started) * 1000.0
             self.last_decode_ms += decode_ms
             self._logits = self._numpy(
-                self._decode.get_output(self._decode.get_output_name(0)))
+                self._decode.get_output(self._decode_output_name))
             self._valid_length += 1
 
         result = {"token": token, "is_eog": is_eog, "decode_ms": decode_ms}
@@ -312,6 +351,13 @@ class QwenM50Frontend:
         self._cache_tensors = []
         self._decode = None
         self._prefill = None
+        mmap = getattr(self._embedding, "_mmap", None)
+        if mmap is not None:
+            mmap.close()
+        self._embedding = None
+        self._sampling_logits = None
+        self._prefill_embeddings = None
+        self._decode_embedding = None
         self._closed = True
 
     def __enter__(self):

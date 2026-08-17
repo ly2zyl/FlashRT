@@ -78,8 +78,7 @@ surface and `generate()`. See the centralized [M50 guide](m50/README.md).
 - `hardware="m50_hmm_compat"` selects the non-native Houmo M50 Pi0.5 adapter. It uses
   `compiled_model_dir` (or `FLASHRT_M50_MODEL_DIR`) for the HMM bundle,
   `tokenizer_path` (or `FLASHRT_M50_TOKENIZER_DIR`) for the local PaliGemma
-  tokenizer, and `device_id` for the XH2 device index. See
-  [`m50/pi05_compatibility.md`](m50/pi05_compatibility.md).
+  tokenizer, and `device_id` for the XH2 device index.
 
 - `decode_cuda_graph`, `decode_graph_steps`, `max_decode_steps` apply to
   Pi0-FAST.
